@@ -56,7 +56,8 @@
                              :player-health :player-max-health :player-mana :player-max-mana :player-level
                              :modify-health :modify-mana :player-alive-p :player-inventory :player-vehicle
                              :player-xp :award-xp :xp-to-next-level
-                             :get-player-damage :get-player-armor :equip-item :unequip-item)
+                             :get-player-damage :get-player-armor :equip-item :unequip-item
+                             :player-equipped-weapon :player-equipped-armor)
   (:import-from :mud.combat :find-spell :cast-spell :spell-name :spell-cost :spell-damage :spell-description
                             :get-player-stats :respawn-player :*spells* :loot-corpse :handle-player-death)
   (:import-from :mud.inventory :create-item :use-item :add-to-inventory :remove-from-inventory

@@ -149,7 +149,7 @@
                        :aggressive t)
 
   ;; Spawn initial mobs in the world
-  (spawn-mob :goblin 'whispering-wood)
-  (spawn-mob :wolf 'whispering-wood)
-  (spawn-mob :skeleton 'graveyard)
-  (spawn-mob :bandit 'moonlit-lane))
+  (spawn-mob :goblin 'mud.world::whispering-wood)
+  (spawn-mob :wolf 'mud.world::whispering-wood)
+  (spawn-mob :skeleton 'mud.world::graveyard)
+  (spawn-mob :bandit 'mud.world::moonlit-lane))

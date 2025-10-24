@@ -397,42 +397,152 @@
       ((null target-name)
        (write-crlf (player-stream caster) (wrap "Cast at whom? Usage: cast <spell> <target>" :bright-red)))
       (t
-       (let ((target (find-player-by-name target-name)))
-         (cond
-           ((null target)
-            (write-crlf (player-stream caster)
-                       (wrap (format nil "No player named '~a' is here." target-name) :bright-red)))
-           ((not (eq (player-room caster) (player-room target)))
-            (write-crlf (player-stream caster)
-                       (wrap (format nil "~a is not in this room." (player-name target)) :bright-red)))
-           (t
-            (multiple-value-bind (success message death-occurred) (cast-spell caster target spell-name)
-              (if success
-                  (progn
-                    (write-crlf (player-stream caster) (wrap message :bright-magenta))
-                    (unless (eq caster target)
-                      (write-crlf (player-stream target)
-                                 (wrap (format nil "~a casts ~a at you!"
-                                              (player-name caster) spell-name)
-                                       :bright-red))
-                      (announce-to-room caster
-                                       (format nil "~a casts ~a at ~a!"
-                                              (wrap (player-name caster) :bright-yellow)
-                                              spell-name
-                                              (wrap (player-name target) :bright-yellow))
-                                       :exclude (list caster target)))
-                    ;; Handle death
-                    (when death-occurred
-                      (write-crlf (player-stream target)
-                                 (wrap "You have died! Your items have been left in a corpse." :bright-red))
-                      (write-crlf (player-stream target)
-                                 (wrap "You awaken in the graveyard, wounded but alive..." :bright-black))
-                      (send-room-overview target)
-                      (announce-to-room target
-                                       (format nil "~a appears, looking worse for wear."
-                                              (wrap (player-name target) :bright-green))
-                                       :include-self nil)))
-                  (write-crlf (player-stream caster) (wrap message :bright-red)))))))))))
+       ;; Try to find a player first
+       (let ((player-target (find-player-by-name target-name)))
+         (if player-target
+             ;; Cast on player
+             (cond
+               ((not (eq (player-room caster) (player-room player-target)))
+                (write-crlf (player-stream caster)
+                           (wrap (format nil "~a is not in this room." (player-name player-target)) :bright-red)))
+               (t
+                (multiple-value-bind (success message death-occurred) (cast-spell caster player-target spell-name)
+                  (if success
+                      (progn
+                        (write-crlf (player-stream caster) (wrap message :bright-magenta))
+                        (unless (eq caster player-target)
+                          (write-crlf (player-stream player-target)
+                                     (wrap (format nil "~a casts ~a at you!"
+                                                  (player-name caster) spell-name)
+                                           :bright-red))
+                          (announce-to-room caster
+                                           (format nil "~a casts ~a at ~a!"
+                                                  (wrap (player-name caster) :bright-yellow)
+                                                  spell-name
+                                                  (wrap (player-name player-target) :bright-yellow))
+                                           :exclude (list caster player-target)))
+                        ;; Handle death
+                        (when death-occurred
+                          (write-crlf (player-stream player-target)
+                                     (wrap "You have died! Your items have been left in a corpse." :bright-red))
+                          (write-crlf (player-stream player-target)
+                                     (wrap "You awaken in the graveyard, wounded but alive..." :bright-black))
+                          (send-room-overview player-target)
+                          (announce-to-room player-target
+                                           (format nil "~a appears, looking worse for wear."
+                                                  (wrap (player-name player-target) :bright-green))
+                                           :include-self nil)))
+                      (write-crlf (player-stream caster) (wrap message :bright-red))))))
+             ;; No player found, try to find a mob
+             (let ((mob (find-mob-in-room (player-room caster) target-name)))
+               (if mob
+                   ;; Cast spell on mob
+                   (let ((spell (find-spell spell-name)))
+                     (cond
+                       ((null spell)
+                        (write-crlf (player-stream caster)
+                                   (wrap (format nil "Unknown spell: ~a" spell-name) :bright-red)))
+                       ((not (player-alive-p caster))
+                        (write-crlf (player-stream caster)
+                                   (wrap "You are dead and cannot cast spells." :bright-red)))
+                       ((< (player-mana caster) (spell-cost spell))
+                        (write-crlf (player-stream caster)
+                                   (wrap (format nil "Not enough mana. ~a costs ~d mana."
+                                                (spell-name spell) (spell-cost spell))
+                                         :bright-red)))
+                       ((string-equal spell-name "heal")
+                        (write-crlf (player-stream caster)
+                                   (wrap "You cannot heal mobs." :bright-red)))
+                       (t
+                        ;; Deduct mana
+                        (modify-mana caster (- (spell-cost spell)))
+
+                        ;; Apply damage
+                        (let ((damage (spell-damage spell)))
+                          (write-crlf (player-stream caster)
+                                     (wrap (format nil "You cast ~a at ~a for ~d damage!"
+                                                  (spell-name spell) (mob-name mob) damage)
+                                           :bright-magenta))
+                          (announce-to-room caster
+                                           (format nil "~a casts ~a at ~a!"
+                                                  (wrap (player-name caster) :bright-yellow)
+                                                  spell-name
+                                                  (mob-name mob))
+                                           :include-self nil)
+
+                          (let ((mob-died (damage-mob mob damage)))
+                            (if mob-died
+                                (progn
+                                  (write-crlf (player-stream caster)
+                                             (wrap (format nil "You have slain ~a!" (mob-name mob))
+                                                   :bright-green))
+                                  (announce-to-room caster
+                                                   (format nil "~a has slain ~a!"
+                                                          (wrap (player-name caster) :bright-green)
+                                                          (mob-name mob))
+                                                   :include-self nil)
+                                  ;; Award XP
+                                  (let ((xp (mob-xp-reward mob)))
+                                    (let ((leveled-up (award-xp caster xp)))
+                                      (write-crlf (player-stream caster)
+                                                 (wrap (format nil "You gained ~d XP!" xp) :bright-cyan))
+                                      (when leveled-up
+                                        (write-crlf (player-stream caster)
+                                                   (wrap (format nil "*** LEVEL UP! You are now level ~d! ***"
+                                                                (player-level caster))
+                                                         :bright-magenta))
+                                        (write-crlf (player-stream caster)
+                                                   (wrap (format nil "Health: +10 (now ~d)  Mana: +5 (now ~d)"
+                                                                (player-max-health caster)
+                                                                (player-max-mana caster))
+                                                         :bright-green)))))
+                                  ;; Drop loot
+                                  (let ((loot (get-mob-loot mob)))
+                                    (when loot
+                                      (dolist (item loot)
+                                        (add-item-to-room (player-room caster) item))
+                                      (write-crlf (player-stream caster)
+                                                 (wrap (format nil "~a dropped: ~{~a~^, ~}"
+                                                              (mob-name mob)
+                                                              (mapcar #'item-name loot))
+                                                       :bright-yellow))))
+                                  ;; Remove mob from room
+                                  (remove-mob-from-room (player-room caster) mob))
+                                (progn
+                                  (write-crlf (player-stream caster)
+                                             (format nil "~a has ~d/~d health remaining."
+                                                    (mob-name mob)
+                                                    (mob-health mob)
+                                                    (mob-max-health mob)))
+                                  ;; Mob counter-attacks
+                                  (let* ((mob-dmg (mob-damage mob))
+                                         (player-armor (get-player-armor caster))
+                                         (counter-damage (max 1 (- mob-dmg player-armor))))
+                                    (modify-health caster (- counter-damage))
+                                    (write-crlf (player-stream caster)
+                                               (wrap (format nil "~a attacks you for ~d damage!"
+                                                            (mob-name mob) counter-damage)
+                                                     :bright-red))
+                                    (announce-to-room caster
+                                                     (format nil "~a is attacked by ~a!"
+                                                            (wrap (player-name caster) :bright-red)
+                                                            (mob-name mob))
+                                                     :include-self nil)
+                                    (unless (player-alive-p caster)
+                                      (write-crlf (player-stream caster)
+                                                 (wrap "You have been slain!" :bright-red))
+                                      (announce-to-room caster
+                                                       (format nil "~a has been slain by ~a!"
+                                                              (wrap (player-name caster) :bright-red)
+                                                              (mob-name mob))
+                                                       :include-self nil)
+                                      (handle-player-death caster)
+                                      (write-crlf (player-stream caster)
+                                                 (wrap "You awaken in the graveyard, wounded but alive..." :bright-black))
+                                      (send-room-overview caster))))))))
+                   ;; No player or mob found
+                   (write-crlf (player-stream caster)
+                              (wrap (format nil "No target named '~a' is here." target-name) :bright-red))))))))))))
 
 (defun split-on-whitespace (text)
   "Split text on whitespace into a list of words"
