@@ -49,10 +49,17 @@
   (setf (mud.player:player-inventory player)
         (remove item (mud.player:player-inventory player) :test #'eq)))
 
+(defun fuzzy-match-item-name (item-name-full item-name-partial)
+  "Check if partial name matches the full item name (supports substring matching)"
+  (let ((full (string-downcase item-name-full))
+        (partial (string-downcase item-name-partial)))
+    (or (string-equal full partial)
+        (search partial full))))
+
 (defun find-in-inventory (player item-name)
-  "Find the first item in player's inventory matching the name"
+  "Find the first item in player's inventory matching the name (supports partial matches)"
   (find-if (lambda (item)
-             (string-equal (item-name item) item-name))
+             (fuzzy-match-item-name (item-name item) item-name))
            (mud.player:player-inventory player)))
 
 (defun list-inventory (player)
@@ -123,7 +130,7 @@
        (values t (format nil "You drop ~a." item-name))))))
 
 (defun grab-item (player item-name)
-  "Grab an item from the room into inventory. Returns (values success message)"
+  "Get an item from the room into inventory. Returns (values success message)"
   (let ((item (mud.world:find-item-in-room (mud.player:player-room player) item-name)))
     (cond
       ((null item)
@@ -131,4 +138,4 @@
       (t
        (mud.world:remove-item-from-room (mud.player:player-room player) item)
        (add-to-inventory player item)
-       (values t (format nil "You grab ~a." item-name))))))
+       (values t (format nil "You get ~a." item-name))))))

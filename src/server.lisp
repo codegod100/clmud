@@ -171,29 +171,35 @@
     (find-room room-id)))
 
 (defun send-room-overview (player)
-  (let ((room (find-room (player-room player))))
-    (when room
-      (let ((stream (player-stream player)))
-        (write-crlf stream (wrap (format nil "~a" (room-name room)) :bold :bright-cyan))
-        (write-crlf stream (room-description room))
-        (write-crlf stream "")
-        ;; Show other players in the room
-        (with-mutex (*clients-lock*)
-          (let ((others (remove-if (lambda (p) (or (eq p player)
-                                                    (not (eq (player-room p) (player-room player)))))
-                                   *clients*)))
-            (when others
-              (write-crlf stream (wrap (format nil "Also here: ~{~a~^, ~}"
-                                              (mapcar #'player-name others))
-                                      :bright-green)))))
-        ;; Show items on the ground
-        (let ((items-str (list-room-items (player-room player))))
-          (when items-str
-            (write-crlf stream (wrap (format nil "Items: ~a" items-str) :bright-white))))
-        (write-crlf stream "")
-        (let ((exits (mapcar (lambda (pair) (string-upcase (symbol-name (car pair))))
-                              (room-exits room))))
-          (write-crlf stream (wrap (format nil "Exits: ~{~a~^, ~}" exits) :bright-yellow)))))))
+  (let* ((room-id (player-room player))
+         (room (find-room room-id)))
+    (format t "DEBUG: send-room-overview called for player ~a, room-id ~a, room ~a~%"
+            (player-name player) room-id room)
+    (finish-output)
+    (if room
+        (let ((stream (player-stream player)))
+          (write-crlf stream (wrap (format nil "~a" (room-name room)) :bold :bright-cyan))
+          (write-crlf stream (room-description room))
+          (write-crlf stream "")
+          ;; Show other players in the room
+          (with-mutex (*clients-lock*)
+            (let ((others (remove-if (lambda (p) (or (eq p player)
+                                                      (not (eq (player-room p) (player-room player)))))
+                                     *clients*)))
+              (when others
+                (write-crlf stream (wrap (format nil "Also here: ~{~a~^, ~}"
+                                                (mapcar #'player-name others))
+                                        :bright-green)))))
+          ;; Show items on the ground
+          (let ((items-str (list-room-items (player-room player))))
+            (when items-str
+              (write-crlf stream (wrap (format nil "Items: ~a" items-str) :bright-white))))
+          (write-crlf stream "")
+          (let ((exits (mapcar (lambda (pair) (string-upcase (symbol-name (car pair))))
+                                (room-exits room))))
+            (write-crlf stream (wrap (format nil "Exits: ~{~a~^, ~}" exits) :bright-yellow))))
+        (write-crlf (player-stream player)
+                    (wrap (format nil "ERROR: Room ~a not found!" room-id) :bright-red)))))
 
 (defun move-player (player direction)
   (let* ((room (current-room player))
@@ -260,7 +266,7 @@
             (write-crlf (player-stream caster)
                        (wrap (format nil "~a is not in this room." (player-name target)) :bright-red)))
            (t
-            (multiple-value-bind (success message) (cast-spell caster target spell-name)
+            (multiple-value-bind (success message death-occurred) (cast-spell caster target spell-name)
               (if success
                   (progn
                     (write-crlf (player-stream caster) (wrap message :bright-magenta))
@@ -274,7 +280,18 @@
                                               (wrap (player-name caster) :bright-yellow)
                                               spell-name
                                               (wrap (player-name target) :bright-yellow))
-                                       :exclude (list caster target))))
+                                       :exclude (list caster target)))
+                    ;; Handle death
+                    (when death-occurred
+                      (write-crlf (player-stream target)
+                                 (wrap "You have died! Your items have been left in a corpse." :bright-red))
+                      (write-crlf (player-stream target)
+                                 (wrap "You awaken in the graveyard, wounded but alive..." :bright-black))
+                      (send-room-overview target)
+                      (announce-to-room target
+                                       (format nil "~a appears, looking worse for wear."
+                                              (wrap (player-name target) :bright-green))
+                                       :include-self nil)))
                   (write-crlf (player-stream caster) (wrap message :bright-red)))))))))))
 
 (defun split-on-whitespace (text)
@@ -361,17 +378,6 @@
                             (spell-description spell)))))
       ((string= verb "cast")
        (handle-cast player rest))
-      ((string= verb "respawn")
-       (if (player-alive-p player)
-           (write-crlf (player-stream player) (wrap "You are already alive!" :bright-red))
-           (progn
-             (respawn-player player)
-             (write-crlf (player-stream player)
-                        (wrap "You have respawned with full health and mana!" :bright-green))
-             (announce-to-room player
-                              (format nil "~a materializes from the void!"
-                                     (wrap (player-name player) :bright-green))
-                              :include-self nil))))
       ((member verb '("inventory" "inv" "i") :test #'string=)
        (write-crlf (player-stream player) (list-inventory player)))
       ((string= verb "use")
@@ -396,30 +402,75 @@
                                              item-name)
                                       :include-self nil))
                    (write-crlf (player-stream player) (wrap message :bright-red)))))))
-      ((string= verb "grab")
+      ((member verb '("get" "grab") :test #'string=)
        (if (zerop (length rest))
-           (write-crlf (player-stream player) (wrap "Grab what? Usage: grab <item>" :bright-red))
+           (write-crlf (player-stream player) (wrap "Get what? Usage: get <item>" :bright-red))
            (let ((item-name (string-trim '(#\Space #\Tab) rest)))
-             (multiple-value-bind (success message) (grab-item player item-name)
-               (if success
-                   (progn
-                     (write-crlf (player-stream player) (wrap message :bright-green))
-                     (announce-to-room player
-                                      (format nil "~a grabs ~a."
-                                             (wrap (player-name player) :bright-yellow)
-                                             item-name)
-                                      :include-self nil))
-                   (write-crlf (player-stream player) (wrap message :bright-red)))))))
+             ;; Check if it's a corpse
+             (let ((item (find-item-in-room (player-room player) item-name)))
+               (if (and item (eq (item-type item) :corpse))
+                   ;; Looting a corpse
+                   (let ((corpse-items (loot-corpse item)))
+                     (if corpse-items
+                         (progn
+                           (dolist (corpse-item corpse-items)
+                             (add-to-inventory player corpse-item))
+                           (remove-item-from-room (player-room player) item)
+                           (write-crlf (player-stream player)
+                                      (wrap (format nil "You loot the corpse and take ~d item~:p."
+                                                   (length corpse-items))
+                                            :bright-green))
+                           (announce-to-room player
+                                            (format nil "~a loots ~a."
+                                                   (wrap (player-name player) :bright-yellow)
+                                                   item-name)
+                                            :include-self nil))
+                         (write-crlf (player-stream player) (wrap "The corpse is empty." :bright-red))))
+                   ;; Normal item pickup
+                   (multiple-value-bind (success message) (grab-item player item-name)
+                     (if success
+                         (progn
+                           (write-crlf (player-stream player) (wrap message :bright-green))
+                           (announce-to-room player
+                                            (format nil "~a gets ~a."
+                                                   (wrap (player-name player) :bright-yellow)
+                                                   item-name)
+                                            :include-self nil))
+                         (write-crlf (player-stream player) (wrap message :bright-red)))))))))
       ((string= verb ".")
        (write-crlf (player-stream player) (wrap "No previous command to repeat." :bright-red)))
+      ((string= verb "suicide")
+       ;; Test command to trigger death mechanics
+       (write-crlf (player-stream player) (wrap "You take your own life..." :bright-red))
+       (announce-to-room player
+                        (format nil "~a falls to the ground, lifeless."
+                               (wrap (player-name player) :bright-red))
+                        :include-self nil)
+       (format t "DEBUG: Before handle-player-death, room is ~a~%" (player-room player))
+       (finish-output)
+       (handle-player-death player)
+       (format t "DEBUG: After handle-player-death, room is ~a~%" (player-room player))
+       (finish-output)
+       (write-crlf (player-stream player)
+                  (wrap "You have died! Your items have been left in a corpse." :bright-red))
+       (write-crlf (player-stream player)
+                  (wrap "You awaken in the graveyard, wounded but alive..." :bright-black))
+       (send-room-overview player)
+       (announce-to-room player
+                        (format nil "~a appears, looking worse for wear."
+                               (wrap (player-name player) :bright-green))
+                        :include-self nil))
+      ((string= verb "map")
+       (write-crlf (player-stream player)
+                  (wrap (generate-map (player-room player)) :bright-cyan)))
       ((string= verb "help")
        (write-crlf (player-stream player)
                    (wrap "Commands:" :bright-yellow))
        (write-crlf (player-stream player) "  Movement: look (l), go <dir> (n/s/e/w/u/d/ne/nw/se/sw)")
        (write-crlf (player-stream player) "  Social: say <text>, who")
-       (write-crlf (player-stream player) "  Combat: cast <spell> <target>, stats, spells, respawn")
-       (write-crlf (player-stream player) "  Inventory: inventory (inv/i), use <item>, drop <item>, grab <item>")
-       (write-crlf (player-stream player) "  Other: help, quit, . (repeat last command)"))
+       (write-crlf (player-stream player) "  Combat: cast <spell> <target>, stats, spells")
+       (write-crlf (player-stream player) "  Inventory: inventory (inv/i), use <item>, drop <item>, get <item> (loot corpses)")
+       (write-crlf (player-stream player) "  Other: help, quit, map, . (repeat last command), suicide (test death)"))
       ((member verb '("quit" "exit") :test #'string=)
        :quit)
       (t

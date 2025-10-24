@@ -48,7 +48,11 @@
   (define-room 'riverbank
                "Riverbank"
                "Moonlight paints the river in silver ribbons. A wooden skiff knocks gently against the pier, ready for anyone bold enough to cast off."
-               '((:north . market-stalls))))
+               '((:north . market-stalls)))
+  (define-room 'graveyard
+               "Graveyard"
+               "Ancient tombstones lean in the mist, their inscriptions worn by time. The air is still, heavy with the weight of countless souls who have passed through this veil. A faint ethereal glow marks the boundary between life and death."
+               '((:south . village-square))))
 
 (defun find-room (room-id)
   (gethash room-id *rooms*))
@@ -73,12 +77,19 @@
       (setf (room-items room)
             (remove item (room-items room) :test #'eq)))))
 
+(defun fuzzy-match-item-name (item-name-full item-name-partial)
+  "Check if partial name matches the full item name (supports substring matching)"
+  (let ((full (string-downcase item-name-full))
+        (partial (string-downcase item-name-partial)))
+    (or (string-equal full partial)
+        (search partial full))))
+
 (defun find-item-in-room (room-id item-name)
-  "Find the first item in a room matching the name"
+  "Find the first item in a room matching the name (supports partial matches)"
   (let ((room (find-room room-id)))
     (when room
       (find-if (lambda (item)
-                 (string-equal (mud.inventory::item-name item) item-name))
+                 (fuzzy-match-item-name (mud.inventory::item-name item) item-name))
                (room-items room)))))
 
 (defun list-room-items (room-id)
@@ -101,3 +112,31 @@
                                       name)
                                   (if (> (hash-table-count item-counts) 1) ", " "")))
                          item-counts))))))))
+
+(defun generate-map (current-room-id)
+  "Generate an ASCII map of the world with the player's current location marked"
+  (with-output-to-string (s)
+    (format s "~%")
+    (format s "                    [Graveyard]~a~%"
+            (if (eq current-room-id 'graveyard) " *" ""))
+    (format s "                         |~%")
+    (format s "                         |~%")
+    (format s "                  [Tavern Loft]~a~%"
+            (if (eq current-room-id 'tavern-loft) " *" ""))
+    (format s "                         |~%")
+    (format s "                  [Bronze Badger]~a~%"
+            (if (eq current-room-id 'tavern-common-room) " *" ""))
+    (format s "                         |~%")
+    (format s "                         |~%")
+    (format s "  [Market]-----[Village Square]-----[Moonlit Lane]-----[Whispering Wood]~%")
+    (format s "  ~a           ~a              ~a                ~a~%"
+            (if (eq current-room-id 'market-stalls) "*" " ")
+            (if (eq current-room-id 'village-square) "*" " ")
+            (if (eq current-room-id 'moonlit-lane) "*" " ")
+            (if (eq current-room-id 'whispering-wood) "*" " "))
+    (format s "     |~%")
+    (format s "     |~%")
+    (format s "  [Riverbank]~a~%"
+            (if (eq current-room-id 'riverbank) " *" ""))
+    (format s "~%")
+    (format s "  * = Your current location~%")))
