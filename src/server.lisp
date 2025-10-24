@@ -727,17 +727,15 @@
            (let* ((item-name (string-trim '(#\Space #\Tab) rest))
                   (item (find-in-inventory player item-name)))
              (if item
-                 (progn
-                   (remove-from-inventory player item)
-                   (multiple-value-bind (success message) (equip-item player item)
-                     (write-crlf (player-stream player)
-                                (wrap message (if success :bright-green :bright-red)))
-                     (when success
-                       (announce-to-room player
-                                        (format nil "~a equips ~a."
-                                               (wrap (player-name player) :bright-yellow)
-                                               item-name)
-                                        :include-self nil))))
+                 (multiple-value-bind (success message) (equip-item player item)
+                   (write-crlf (player-stream player)
+                              (wrap message (if success :bright-green :bright-red)))
+                   (when success
+                     (announce-to-room player
+                                      (format nil "~a equips ~a."
+                                             (wrap (player-name player) :bright-yellow)
+                                             item-name)
+                                      :include-self nil)))
                  (write-crlf (player-stream player)
                             (wrap (format nil "You don't have any ~a." item-name) :bright-red))))))
       ((string= verb "unequip")

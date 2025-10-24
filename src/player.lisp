@@ -98,16 +98,16 @@
       ((eq item-type :weapon)
        ;; Unequip current weapon if any
        (when (player-equipped-weapon player)
-         (add-to-inventory player (player-equipped-weapon player)))
-       ;; Equip new weapon
+         (setf (player-equipped-weapon player) nil))
+       ;; Equip new weapon (item stays in inventory)
        (setf (player-equipped-weapon player) item)
        (values t (format nil "You wield ~a." (mud.inventory::item-name item))))
 
       ((eq item-type :armor)
        ;; Unequip current armor if any
        (when (player-equipped-armor player)
-         (add-to-inventory player (player-equipped-armor player)))
-       ;; Equip new armor
+         (setf (player-equipped-armor player) nil))
+       ;; Equip new armor (item stays in inventory)
        (setf (player-equipped-armor player) item)
        (values t (format nil "You wear ~a." (mud.inventory::item-name item))))
 
@@ -119,24 +119,20 @@
   (cond
     ((eq slot :weapon)
      (if (player-equipped-weapon player)
-         (progn
-           (add-to-inventory player (player-equipped-weapon player))
-           (let ((item-name (mud.inventory::item-name (player-equipped-weapon player))))
-             (setf (player-equipped-weapon player) nil)
-             (values t (format nil "You unequip ~a." item-name))))
+         (let ((item-name (mud.inventory::item-name (player-equipped-weapon player))))
+           (setf (player-equipped-weapon player) nil)
+           (values t (format nil "You unequip ~a." item-name)))
          (values nil "You don't have a weapon equipped.")))
 
     ((eq slot :armor)
      (if (player-equipped-armor player)
-         (progn
-           (add-to-inventory player (player-equipped-armor player))
-           (let ((item-name (mud.inventory::item-name (player-equipped-armor player))))
-             (setf (player-equipped-armor player) nil)
-             (values t (format nil "You unequip ~a." item-name))))
+         (let ((item-name (mud.inventory::item-name (player-equipped-armor player))))
+           (setf (player-equipped-armor player) nil)
+           (values t (format nil "You unequip ~a." item-name)))
          (values nil "You don't have armor equipped.")))
 
     (t
-     (values nil "Invalid equipment slot."))))
+     (values nil "Invalid slot. Use 'weapon' or 'armor'."))))
 
 (defun add-to-inventory (player item)
   "Add an item to player's inventory"
