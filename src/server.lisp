@@ -170,6 +170,30 @@
   (let ((room-id (player-room player)))
     (find-room room-id)))
 
+(defun colorize-facets (text)
+  "Replace [facet] markers with colorized text"
+  (with-output-to-string (out)
+    (let ((pos 0))
+      (loop
+        (let ((start (search "[" text :start2 pos)))
+          (if (null start)
+              (progn
+                (write-string (subseq text pos) out)
+                (return))
+              (let ((end (search "]" text :start2 start)))
+                (if (null end)
+                    (progn
+                      (write-string (subseq text pos) out)
+                      (return))
+                    (progn
+                      ;; Write text before [
+                      (write-string (subseq text pos start) out)
+                      ;; Write colorized facet name
+                      (let ((facet-name (subseq text (1+ start) end)))
+                        (write-string (wrap facet-name :bright-yellow) out))
+                      ;; Move position past ]
+                      (setf pos (1+ end)))))))))))
+
 (defun send-room-overview (player)
   (let* ((room-id (player-room player))
          (room (find-room room-id)))
@@ -179,7 +203,7 @@
     (if room
         (let ((stream (player-stream player)))
           (write-crlf stream (wrap (format nil "~a" (room-name room)) :bold :bright-cyan))
-          (write-crlf stream (room-description room))
+          (write-crlf stream (colorize-facets (room-description room)))
           (write-crlf stream "")
           ;; Show other players in the room
           (with-mutex (*clients-lock*)
@@ -217,6 +241,8 @@
           (announce-to-room player
                              (format nil "~a arrives." (wrap (player-name player) :bright-green))
                              :include-self nil)
+          (write-crlf (player-stream player)
+                     (wrap (generate-map (player-room player)) :bright-cyan))
           (send-room-overview player)
           t))))
 
@@ -342,7 +368,45 @@
     (cond
       ((null verb) (send-room-overview player))
       ((member verb '("look" "l") :test #'string=)
-       (send-room-overview player))
+       (if (zerop (length rest))
+           ;; Look at room
+           (send-room-overview player)
+           ;; Look at specific target
+           (let ((target-name (string-trim '(#\Space #\Tab) rest)))
+             ;; First check if it's a player in the room
+             (let ((target-player nil))
+               (with-mutex (*clients-lock*)
+                 (setf target-player
+                       (find-if (lambda (p)
+                                  (and (not (eq p player))
+                                       (eq (player-room p) (player-room player))
+                                       (string-equal (player-name p) target-name)))
+                                *clients*)))
+               (cond
+                 ;; Found a player
+                 (target-player
+                  (write-crlf (player-stream player)
+                             (wrap (format nil "~a stands here. ~a"
+                                          (player-name target-player)
+                                          (get-player-stats target-player))
+                                   :bright-green)))
+                 ;; Check for a facet in the room
+                 (t
+                  (let ((facet (find-facet-in-room (player-room player) target-name)))
+                    (if facet
+                        (write-crlf (player-stream player)
+                                   (wrap (cdr facet) :bright-magenta))
+                        ;; Check for an item in the room
+                        (let ((item (find-item-in-room (player-room player) target-name)))
+                          (if item
+                              (write-crlf (player-stream player)
+                                         (wrap (format nil "~a: ~a"
+                                                      (item-name item)
+                                                      (mud.inventory::item-description item))
+                                               :bright-white))
+                              (write-crlf (player-stream player)
+                                         (wrap (format nil "You don't see '~a' here." target-name)
+                                               :bright-red))))))))))))
       ((member verb '("move" "go") :test #'string=)
        (if (zerop (length rest))
            (write-crlf (player-stream player) (wrap "Go where?" :bright-red))

@@ -5,54 +5,70 @@
   name
   description
   exits
-  (items nil :type list))
+  (items nil :type list)
+  (facets nil :type list))  ; List of (name . description) pairs for examinable details
 
 (defparameter *rooms* (make-hash-table :test #'eq))
 (defparameter *starting-room* 'village-square)
 
-(defun define-room (id name description exits)
+(defun define-room (id name description exits &optional facets)
   (setf (gethash id *rooms*)
-        (make-room :id id :name name :description description :exits exits)))
+        (make-room :id id :name name :description description :exits exits :facets facets)))
 
 (defun initialize-world ()
   (clrhash *rooms*)
   (define-room 'village-square
                "Village Square"
-               "Cobblestone paths converge beneath an ancient oak, its leaves whispering tales of heroes past. Lanterns sway gently, casting golden halos in the dusk."
+               "Cobblestone paths converge beneath an [ancient oak], its leaves whispering tales of heroes past. [Lanterns] sway gently, casting golden halos in the dusk."
                '((:north . tavern-common-room)
                  (:east . moonlit-lane)
-                 (:west . market-stalls)))
+                 (:west . market-stalls))
+               '(("ancient oak" . "The massive oak has stood here for centuries. Carved into its trunk are names of heroes long past, and a small hollow near the base seems to hide something...")
+                 ("lanterns" . "The lanterns are wrought iron, their flames never seeming to dim. They were said to be blessed by an ancient mage to guide lost travelers.")))
   (define-room 'tavern-common-room
                "The Bronze Badger"
-               "Warm lamplight spills over polished oak tables, while the scent of spiced cider mingles with distant lute music. A crackling hearth invites weary travelers."
+               "Warm lamplight spills over polished oak tables, while the scent of spiced cider mingles with distant lute music. A crackling [hearth] invites weary travelers. Behind the bar, a [weathered map] hangs on the wall."
                '((:south . village-square)
-                 (:up . tavern-loft)))
+                 (:up . tavern-loft))
+               '(("hearth" . "The stone hearth crackles with eternal flame. Local legend says it was lit by the first settlers and has never gone out.")
+                 ("weathered map" . "The map shows the surrounding lands, with several locations marked with red X's. One appears to be deep in the Whispering Wood...")))
   (define-room 'tavern-loft
                "Tavern Loft"
-               "Low beams and soft straw mattresses offer respite. A narrow window reveals the silver glow of the moonlit treeline beyond the village walls."
-               '((:down . tavern-common-room)))
+               "Low beams and soft straw mattresses offer respite. A narrow [window] reveals the silver glow of the moonlit treeline beyond the village walls."
+               '((:down . tavern-common-room))
+               '(("window" . "Through the dusty glass, you can see the distant forest. Something occasionally glimmers between the trees...")))
   (define-room 'moonlit-lane
                "Moonlit Lane"
-               "A narrow lane stretches eastward, flanked by ivy-clad cottages. Fireflies dance in the night air, drawing the eye toward the shadowed forest archway."
+               "A narrow lane stretches eastward, flanked by [ivy-clad cottages]. Fireflies dance in the night air, drawing the eye toward the shadowed [forest archway]."
                '((:west . village-square)
-                 (:east . whispering-wood)))
+                 (:east . whispering-wood))
+               '(("ivy-clad cottages" . "The cottages are ancient, their windows dark. The ivy seems to move slightly, as if breathing...")
+                 ("forest archway" . "Two twisted trees form a natural archway leading into the Whispering Wood. Strange runes are carved into their bark.")))
   (define-room 'whispering-wood
                "Whispering Wood"
-               "Towering pines murmur secrets overhead, their needles shimmering with dew. Somewhere deeper within, an owl hoots, beckoning the brave."
-               '((:west . moonlit-lane)))
+               "Towering pines murmur secrets overhead, their needles shimmering with dew. Somewhere deeper within, an [owl] hoots, beckoning the brave. A [standing stone] covered in moss rises from the forest floor."
+               '((:west . moonlit-lane))
+               '(("owl" . "The owl watches you with knowing eyes. It seems to be guarding something in the deeper woods...")
+                 ("standing stone" . "Ancient runes cover the stone. You can barely make out the words: 'Only the worthy may pass beyond...'")))
   (define-room 'market-stalls
                "Closing Market"
-               "Canopies ripple in the breeze as merchants shutter their stalls. The lingering aroma of roasted chestnuts and fresh parchment fills the air."
+               "Canopies ripple in the breeze as merchants shutter their stalls. The lingering aroma of [roasted chestnuts] and fresh parchment fills the air. A [notice board] displays various announcements."
                '((:east . village-square)
-                 (:south . riverbank)))
+                 (:south . riverbank))
+               '(("roasted chestnuts" . "The warm chestnuts are a local specialty. The vendor mentions that the recipe is a closely guarded secret passed down for generations.")
+                 ("notice board" . "Several notices are pinned here: 'WANTED: Brave souls to investigate disappearances in Whispering Wood. Reward offered.' Another reads: 'Lost: Family heirloom ring, last seen near the riverbank.'")))
   (define-room 'riverbank
                "Riverbank"
-               "Moonlight paints the river in silver ribbons. A wooden skiff knocks gently against the pier, ready for anyone bold enough to cast off."
-               '((:north . market-stalls)))
+               "Moonlight paints the [river] in silver ribbons. A wooden [skiff] knocks gently against the pier, ready for anyone bold enough to cast off."
+               '((:north . market-stalls))
+               '(("river" . "The water flows swiftly, its depths dark and mysterious. You think you see something glinting on the riverbed...")
+                 ("skiff" . "The small boat looks seaworthy, though there are no oars. A name is carved into the bow: 'Eternal Wanderer'.")))
   (define-room 'graveyard
                "Graveyard"
-               "Ancient tombstones lean in the mist, their inscriptions worn by time. The air is still, heavy with the weight of countless souls who have passed through this veil. A faint ethereal glow marks the boundary between life and death."
-               '((:south . village-square))))
+               "Ancient [tombstones] lean in the mist, their inscriptions worn by time. The air is still, heavy with the weight of countless souls who have passed through this veil. A faint [ethereal glow] marks the boundary between life and death."
+               '((:south . village-square))
+               '(("tombstones" . "Most inscriptions are illegible, but one reads: 'Here lies the Keeper of Secrets. Death is not the end, merely a door.' Fresh flowers rest at its base, though no one living has been seen placing them.")
+                 ("ethereal glow" . "The glow pulses gently, like a heartbeat. Those who have died and returned speak of a presence here - neither malevolent nor kind, simply... waiting."))))
 
 (defun find-room (room-id)
   (gethash room-id *rooms*))
@@ -92,6 +108,14 @@
                  (fuzzy-match-item-name (mud.inventory::item-name item) item-name))
                (room-items room)))))
 
+(defun find-facet-in-room (room-id facet-name)
+  "Find a facet in a room by name (supports partial matches)"
+  (let ((room (find-room room-id)))
+    (when room
+      (find-if (lambda (facet-pair)
+                 (fuzzy-match-item-name (car facet-pair) facet-name))
+               (room-facets room)))))
+
 (defun list-room-items (room-id)
   "Return a formatted list of items in a room"
   (let ((room (find-room room-id)))
@@ -117,26 +141,27 @@
   "Generate an ASCII map of the world with the player's current location marked"
   (with-output-to-string (s)
     (format s "~%")
-    (format s "                    [Graveyard]~a~%"
-            (if (eq current-room-id 'graveyard) " *" ""))
+    (format s "                    [Graveyard]~%")
+    (format s "                         ~a~%"
+            (if (eq current-room-id 'graveyard) "*" " "))
     (format s "                         |~%")
+    (format s "                  [Tavern Loft]~%")
+    (format s "                         ~a~%"
+            (if (eq current-room-id 'tavern-loft) "*" " "))
     (format s "                         |~%")
-    (format s "                  [Tavern Loft]~a~%"
-            (if (eq current-room-id 'tavern-loft) " *" ""))
-    (format s "                         |~%")
-    (format s "                  [Bronze Badger]~a~%"
-            (if (eq current-room-id 'tavern-common-room) " *" ""))
-    (format s "                         |~%")
+    (format s "                  [Bronze Badger]~%")
+    (format s "                         ~a~%"
+            (if (eq current-room-id 'tavern-common-room) "*" " "))
     (format s "                         |~%")
     (format s "  [Market]-----[Village Square]-----[Moonlit Lane]-----[Whispering Wood]~%")
-    (format s "  ~a           ~a              ~a                ~a~%"
+    (format s "      ~a               ~a                  ~a                   ~a~%"
             (if (eq current-room-id 'market-stalls) "*" " ")
             (if (eq current-room-id 'village-square) "*" " ")
             (if (eq current-room-id 'moonlit-lane) "*" " ")
             (if (eq current-room-id 'whispering-wood) "*" " "))
-    (format s "     |~%")
-    (format s "     |~%")
-    (format s "  [Riverbank]~a~%"
-            (if (eq current-room-id 'riverbank) " *" ""))
+    (format s "      |~%")
+    (format s "  [Riverbank]~%")
+    (format s "      ~a~%"
+            (if (eq current-room-id 'riverbank) "*" " "))
     (format s "~%")
     (format s "  * = Your current location~%")))
