@@ -424,11 +424,36 @@
                         ;; Check for an item in the room
                         (let ((room-item (find-item-in-room (player-room player) target-name)))
                           (if room-item
-                              (write-crlf (player-stream player)
-                                         (wrap (format nil "~a: ~a"
-                                                      (item-name room-item)
-                                                      (mud.inventory::item-description room-item))
-                                               :bright-white))
+                              (progn
+                                (write-crlf (player-stream player)
+                                           (wrap (format nil "~a: ~a"
+                                                        (item-name room-item)
+                                                        (mud.inventory::item-description room-item))
+                                                 :bright-white))
+                                ;; If it's a corpse, show contents
+                                (when (eq (item-type room-item) :corpse)
+                                  (let ((corpse-contents (gethash (item-name room-item)
+                                                                  mud.combat::*corpse-data*)))
+                                    (if corpse-contents
+                                        (let ((counts (make-hash-table :test #'equal)))
+                                          ;; Count items by name
+                                          (dolist (it corpse-contents)
+                                            (incf (gethash (mud.inventory::item-name it) counts 0)))
+                                          ;; Build a string like "mana-potion (x3), sword"
+                                          (let ((contents-str
+                                                  (with-output-to-string (out)
+                                                    (let ((first t))
+                                                      (maphash (lambda (name count)
+                                                                 (unless first (format out ", "))
+                                                                 (setf first nil)
+                                                                 (if (> count 1)
+                                                                     (format out "~a (x~d)" name count)
+                                                                     (format out "~a" name)))
+                                                               counts)))))
+                                            (write-crlf (player-stream player)
+                                                       (wrap (format nil "Contents: ~a" contents-str) :bright-yellow))))
+                                        (write-crlf (player-stream player)
+                                                   (wrap "The corpse is empty." :bright-black))))))
                               ;; Check for an item in inventory
                               (let ((inv-item (find-in-inventory player target-name)))
                                 (if inv-item

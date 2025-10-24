@@ -26,7 +26,7 @@
 (defpackage :mud.combat
   (:use :cl)
   (:export :*spells* :find-spell :cast-spell :spell-name :spell-cost :spell-damage :spell-description
-           :get-player-stats :respawn-player :loot-corpse :handle-player-death))
+           :get-player-stats :respawn-player :loot-corpse :handle-player-death :*corpse-data*))
 
 (defpackage :mud.server
   (:use :cl :sb-bsd-sockets :sb-thread)

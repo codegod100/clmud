@@ -73,6 +73,10 @@
     (setf (mud.player:player-inventory player) nil)
     ;; Drop corpse in current room
     (mud.world:add-item-to-room room-id corpse)
+    ;; Exit vehicle if in one
+    (when (mud.player:player-vehicle player)
+      (mud.world:add-item-to-room room-id (mud.player:player-vehicle player))
+      (setf (mud.player:player-vehicle player) nil))
     ;; Move player to graveyard
     (mud.player:set-player-room player 'mud.world::graveyard)
     ;; Restore partial health (30%) and some mana (50%)
