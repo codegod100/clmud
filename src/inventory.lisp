@@ -3,10 +3,11 @@
 ;;; Item structure
 (defstruct item
   (name "" :type string)
-  (type :consumable :type keyword)  ; :consumable, :equipment, :key, etc.
+  (type :consumable :type keyword)  ; :consumable, :equipment, :key, :vehicle, etc.
   (effect nil :type (or null keyword))  ; :restore-mana, :restore-health, etc.
   (value 0 :type integer)  ; Amount of effect (mana/health restored, etc.)
-  (description "" :type string))
+  (description "" :type string)
+  (vehicle-type nil :type (or null keyword)))  ; :water, :uber, etc. (for vehicle items)
 
 ;;; Item templates (blueprints for creating items)
 (defparameter *item-templates*

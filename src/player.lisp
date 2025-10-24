@@ -5,6 +5,7 @@
    (room :initarg :room :accessor player-room)
    (stream :initarg :stream :accessor player-stream)
    (socket :initarg :socket :accessor player-socket)
+   (vehicle :initarg :vehicle :accessor player-vehicle :initform nil)
    (health :initarg :health :accessor player-health :initform 100)
    (max-health :initarg :max-health :accessor player-max-health :initform 100)
    (mana :initarg :mana :accessor player-mana :initform 50)

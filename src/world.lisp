@@ -11,18 +11,46 @@
 (defparameter *rooms* (make-hash-table :test #'eq))
 (defparameter *starting-room* 'village-square)
 
+;;; Vehicle definitions
+(defstruct vehicle
+  name
+  type
+  description)
+
+(defparameter *vehicles* (make-hash-table :test 'equal)
+  "Hash table of vehicle name -> vehicle struct")
+
+(defun define-vehicle (name type description)
+  "Define a vehicle that can be entered"
+  (setf (gethash name *vehicles*)
+        (make-vehicle :name name :type type :description description)))
+
+(defun find-vehicle (name)
+  "Find a vehicle by name (case-insensitive)"
+  (gethash (string-downcase name) *vehicles*))
+
 (defun define-room (id name description exits &optional facets)
   (setf (gethash id *rooms*)
         (make-room :id id :name name :description description :exits exits :facets facets)))
 
 (defun initialize-world ()
   (clrhash *rooms*)
+  (clrhash *vehicles*)
+
+  ;; Define vehicles
+  (define-vehicle "skiff" :water "A small wooden boat that glides across water on its own.")
+  (define-vehicle "boat" :water "A small wooden boat that glides across water on its own.")
+  (define-vehicle "eternal wanderer" :water "A small wooden boat that glides across water on its own.")
+  (define-vehicle "car" :uber "A sleek, magical carriage that can take you anywhere instantly.")
+  (define-vehicle "carriage" :uber "A sleek, magical carriage that can take you anywhere instantly.")
+
   (define-room 'village-square
                "Village Square"
                "Cobblestone paths converge beneath an [ancient oak], its leaves whispering tales of heroes past. [Lanterns] sway gently, casting golden halos in the dusk."
                '((:north . tavern-common-room)
                  (:east . moonlit-lane)
-                 (:west . market-stalls))
+                 (:west . market-stalls)
+                 (:northwest . graveyard))
                '(("ancient oak" . "The massive oak has stood here for centuries. Carved into its trunk are names of heroes long past, and a small hollow near the base seems to hide something...")
                  ("lanterns" . "The lanterns are wrought iron, their flames never seeming to dim. They were said to be blessed by an ancient mage to guide lost travelers.")))
   (define-room 'tavern-common-room
@@ -59,26 +87,66 @@
                  ("notice board" . "Several notices are pinned here: 'WANTED: Brave souls to investigate disappearances in Whispering Wood. Reward offered.' Another reads: 'Lost: Family heirloom ring, last seen near the riverbank.'")))
   (define-room 'riverbank
                "Riverbank"
-               "Moonlight paints the [river] in silver ribbons. A wooden [skiff] knocks gently against the pier, ready for anyone bold enough to cast off."
-               '((:north . market-stalls))
-               '(("river" . "The water flows swiftly, its depths dark and mysterious. You think you see something glinting on the riverbed...")
-                 ("skiff" . "The small boat looks seaworthy, though there are no oars. A name is carved into the bow: 'Eternal Wanderer'.")))
+               "Moonlight paints the [river] in silver ribbons. A wooden skiff knocks gently against the pier, ready for anyone bold enough to cast off."
+               '((:north . market-stalls)
+                 (:downstream :water . hidden-cove))
+               '(("river" . "The water flows swiftly, its depths dark and mysterious. You think you see something glinting on the riverbed...")))
+  (define-room 'hidden-cove
+               "Hidden Cove"
+               "A secluded cove surrounded by towering cliffs. The water is calm here, crystal clear. Ancient [ruins] peek through the vines on the cliff face, and a narrow [cave entrance] yawns in the rock."
+               '((:upstream :water . riverbank))
+               '(("ruins" . "The ruins are covered in the same strange runes you saw on the forest archway. They seem to glow faintly in the moonlight, pulsing with an otherworldly energy.")
+                 ("cave entrance" . "The cave is dark and foreboding. Cold air wafts out, carrying whispers of things best left undisturbed. You sense great power - and great danger - within.")))
   (define-room 'graveyard
                "Graveyard"
                "Ancient [tombstones] lean in the mist, their inscriptions worn by time. The air is still, heavy with the weight of countless souls who have passed through this veil. A faint [ethereal glow] marks the boundary between life and death."
-               '((:south . village-square))
+               '((:southeast . village-square))
                '(("tombstones" . "Most inscriptions are illegible, but one reads: 'Here lies the Keeper of Secrets. Death is not the end, merely a door.' Fresh flowers rest at its base, though no one living has been seen placing them.")
-                 ("ethereal glow" . "The glow pulses gently, like a heartbeat. Those who have died and returned speak of a presence here - neither malevolent nor kind, simply... waiting."))))
+                 ("ethereal glow" . "The glow pulses gently, like a heartbeat. Those who have died and returned speak of a presence here - neither malevolent nor kind, simply... waiting.")))
+
+  ;; Create and place vehicle items in rooms
+  (let ((car-item (mud.inventory::make-item
+                   :name "car"
+                   :type :vehicle
+                   :vehicle-type :uber
+                   :description "A sleek, magical carriage that shimmers with arcane energy. You can enter it to travel anywhere instantly."))
+        (skiff-item (mud.inventory::make-item
+                     :name "skiff"
+                     :type :vehicle
+                     :vehicle-type :water
+                     :description "A small wooden boat called 'Eternal Wanderer'. You can enter it to navigate water passages.")))
+    (add-item-to-room 'village-square car-item)
+    (add-item-to-room 'riverbank skiff-item)))
 
 (defun find-room (room-id)
   (gethash room-id *rooms*))
+
+(defun find-room-by-name (room-name)
+  "Find a room by its name (case-insensitive, partial match supported)"
+  (let ((search-name (string-downcase room-name)))
+    (loop for room being the hash-values of *rooms*
+          when (search search-name (string-downcase (room-name room)))
+          return room)))
 
 (defun starting-room ()
   (or (find-room *starting-room*)
       (error "Starting room ~a is undefined." *starting-room*)))
 
-(defun neighbor (room direction)
-  (cdr (assoc direction (room-exits room))))
+(defun neighbor (room direction &optional vehicle-type)
+  "Find the room connected by direction. If vehicle-type is provided, only return exits of that type."
+  (let ((exit-entry (assoc direction (room-exits room))))
+    (when exit-entry
+      (let ((rest-of-entry (cdr exit-entry)))
+        ;; Check if this is a typed exit (format: (:direction :type . room))
+        ;; A typed exit will have a keyword as the first element of the cdr
+        (if (and (consp rest-of-entry) (keywordp (car rest-of-entry)))
+            ;; Typed exit - check if vehicle matches
+            (when (and vehicle-type (eq vehicle-type (car rest-of-entry)))
+              (cdr rest-of-entry))
+            ;; Simple exit (format: (:direction . room))
+            ;; Accessible when not in a vehicle OR in an uber vehicle
+            (when (or (null vehicle-type) (eq vehicle-type :uber))
+              rest-of-entry))))))
 
 (defun add-item-to-room (room-id item)
   "Add an item to a room"
@@ -141,18 +209,15 @@
   "Generate an ASCII map of the world with the player's current location marked"
   (with-output-to-string (s)
     (format s "~%")
-    (format s "                    [Graveyard]~%")
-    (format s "                         ~a~%"
-            (if (eq current-room-id 'graveyard) "*" " "))
-    (format s "                         |~%")
-    (format s "                  [Tavern Loft]~%")
-    (format s "                         ~a~%"
+    (format s "  [Graveyard]          [Tavern Loft]~%")
+    (format s "       ~a                    ~a~%"
+            (if (eq current-room-id 'graveyard) "*" " ")
             (if (eq current-room-id 'tavern-loft) "*" " "))
-    (format s "                         |~%")
-    (format s "                  [Bronze Badger]~%")
-    (format s "                         ~a~%"
+    (format s "        \\                   |~%")
+    (format s "         \\           [Bronze Badger]~%")
+    (format s "          \\                 ~a~%"
             (if (eq current-room-id 'tavern-common-room) "*" " "))
-    (format s "                         |~%")
+    (format s "           \\                |~%")
     (format s "  [Market]-----[Village Square]-----[Moonlit Lane]-----[Whispering Wood]~%")
     (format s "      ~a               ~a                  ~a                   ~a~%"
             (if (eq current-room-id 'market-stalls) "*" " ")
@@ -163,5 +228,11 @@
     (format s "  [Riverbank]~%")
     (format s "      ~a~%"
             (if (eq current-room-id 'riverbank) "*" " "))
+    (format s "      |~%")
+    (format s "      | (enter skiff)~%")
+    (format s "      |~%")
+    (format s "  [Hidden Cove]~%")
+    (format s "      ~a~%"
+            (if (eq current-room-id 'hidden-cove) "*" " "))
     (format s "~%")
     (format s "  * = Your current location~%")))

@@ -202,6 +202,8 @@
     (finish-output)
     (if room
         (let ((stream (player-stream player)))
+          ;; Show map first
+          (write-crlf stream (wrap (generate-map (player-room player)) :bright-cyan))
           (write-crlf stream (wrap (format nil "~a" (room-name room)) :bold :bright-cyan))
           (write-crlf stream (colorize-facets (room-description room)))
           (write-crlf stream "")
@@ -219,15 +221,40 @@
             (when items-str
               (write-crlf stream (wrap (format nil "Items: ~a" items-str) :bright-white))))
           (write-crlf stream "")
-          (let ((exits (mapcar (lambda (pair) (string-upcase (symbol-name (car pair))))
-                                (room-exits room))))
-            (write-crlf stream (wrap (format nil "Exits: ~{~a~^, ~}" exits) :bright-yellow))))
+          ;; Show exits based on vehicle type
+          (let* ((vehicle-type (when (player-vehicle player)
+                                 (mud.inventory::item-vehicle-type (player-vehicle player))))
+                 (all-exits (room-exits room))
+                 (available-exits
+                   (remove-if-not
+                     (lambda (exit-entry)
+                       (let ((direction (car exit-entry))
+                             (rest-of-entry (cdr exit-entry)))
+                         ;; Check if this is a typed exit
+                         (if (and (consp rest-of-entry) (keywordp (car rest-of-entry)))
+                             ;; Typed exit - only show if we have matching vehicle
+                             (and vehicle-type (eq vehicle-type (car rest-of-entry)))
+                             ;; Simple exit - show if not in vehicle OR in uber vehicle
+                             (or (null vehicle-type) (eq vehicle-type :uber)))))
+                     all-exits))
+                 (exit-names (mapcar (lambda (pair) (string-upcase (symbol-name (car pair))))
+                                   available-exits)))
+            (if exit-names
+                (write-crlf stream (wrap (format nil "Exits: ~{~a~^, ~}" exit-names) :bright-yellow))
+                (write-crlf stream (wrap "Exits: none" :bright-yellow))))
+          ;; Show vehicle status
+          (when (player-vehicle player)
+            (write-crlf stream (wrap (format nil "You are in: ~a"
+                                            (item-name (player-vehicle player)))
+                                    :bright-cyan))))
         (write-crlf (player-stream player)
                     (wrap (format nil "ERROR: Room ~a not found!" room-id) :bright-red)))))
 
 (defun move-player (player direction)
   (let* ((room (current-room player))
-         (target-id (and room (neighbor room direction)))
+         (vehicle-type (when (player-vehicle player)
+                         (mud.inventory::item-vehicle-type (player-vehicle player))))
+         (target-id (and room (neighbor room direction vehicle-type)))
          (target (and target-id (find-room target-id))))
     (if (null target)
         (let ((stream (player-stream player)))
@@ -241,8 +268,6 @@
           (announce-to-room player
                              (format nil "~a arrives." (wrap (player-name player) :bright-green))
                              :include-self nil)
-          (write-crlf (player-stream player)
-                     (wrap (generate-map (player-room player)) :bright-cyan))
           (send-room-overview player)
           t))))
 
@@ -397,23 +422,31 @@
                         (write-crlf (player-stream player)
                                    (wrap (cdr facet) :bright-magenta))
                         ;; Check for an item in the room
-                        (let ((item (find-item-in-room (player-room player) target-name)))
-                          (if item
+                        (let ((room-item (find-item-in-room (player-room player) target-name)))
+                          (if room-item
                               (write-crlf (player-stream player)
                                          (wrap (format nil "~a: ~a"
-                                                      (item-name item)
-                                                      (mud.inventory::item-description item))
+                                                      (item-name room-item)
+                                                      (mud.inventory::item-description room-item))
                                                :bright-white))
-                              (write-crlf (player-stream player)
-                                         (wrap (format nil "You don't see '~a' here." target-name)
-                                               :bright-red))))))))))))
+                              ;; Check for an item in inventory
+                              (let ((inv-item (find-in-inventory player target-name)))
+                                (if inv-item
+                                    (write-crlf (player-stream player)
+                                               (wrap (format nil "~a (in your inventory): ~a"
+                                                            (item-name inv-item)
+                                                            (mud.inventory::item-description inv-item))
+                                                     :bright-cyan))
+                                    (write-crlf (player-stream player)
+                                               (wrap (format nil "You don't see '~a' here." target-name)
+                                                     :bright-red))))))))))))))
       ((member verb '("move" "go") :test #'string=)
        (if (zerop (length rest))
            (write-crlf (player-stream player) (wrap "Go where?" :bright-red))
            (let* ((dir-token (subseq rest 0 (or (position-if #'whitespace-char-p rest) (length rest))))
                   (keyword (normalize-direction dir-token)))
              (move-player player keyword))))
-      ((member verb '("n" "s" "e" "w" "u" "d" "ne" "nw" "se" "sw") :test #'string=)
+      ((member verb '("n" "s" "e" "w" "u" "d" "ne" "nw" "se" "sw" "downstream" "upstream") :test #'string=)
        (move-player player (normalize-direction verb)))
       ((string= verb "say")
        (handle-say player rest))
@@ -524,17 +557,94 @@
                         (format nil "~a appears, looking worse for wear."
                                (wrap (player-name player) :bright-green))
                         :include-self nil))
-      ((string= verb "map")
-       (write-crlf (player-stream player)
-                  (wrap (generate-map (player-room player)) :bright-cyan)))
+      ((string= verb "enter")
+       (if (zerop (length rest))
+           (write-crlf (player-stream player) (wrap "Enter what?" :bright-red))
+           (let* ((target-name (string-trim '(#\Space #\Tab) rest))
+                  (vehicle-item (find-item-in-room (player-room player) target-name)))
+             (cond
+               ((player-vehicle player)
+                (write-crlf (player-stream player)
+                           (wrap (format nil "You are already in ~a."
+                                        (item-name (player-vehicle player)))
+                                 :bright-red)))
+               ((or (null vehicle-item) (not (eq (item-type vehicle-item) :vehicle)))
+                (write-crlf (player-stream player)
+                           (wrap (format nil "You can't enter '~a'." target-name) :bright-red)))
+               (t
+                ;; Remove vehicle from room, store in player
+                (remove-item-from-room (player-room player) vehicle-item)
+                (setf (player-vehicle player) vehicle-item)
+                (write-crlf (player-stream player)
+                           (wrap (format nil "You enter ~a." (item-name vehicle-item))
+                                 :bright-cyan))
+                (announce-to-room player
+                                 (format nil "~a enters ~a."
+                                        (wrap (player-name player) :bright-blue)
+                                        (item-name vehicle-item))
+                                 :include-self nil)
+                (send-room-overview player))))))
+      ((string= verb "exit")
+       (cond
+         ((null (player-vehicle player))
+          (write-crlf (player-stream player)
+                     (wrap "You are not in a vehicle." :bright-red)))
+         (t
+          (let ((vehicle-item (player-vehicle player)))
+            ;; Put vehicle back in the room
+            (add-item-to-room (player-room player) vehicle-item)
+            (setf (player-vehicle player) nil)
+            (write-crlf (player-stream player)
+                       (wrap (format nil "You exit ~a." (item-name vehicle-item)) :bright-cyan))
+            (announce-to-room player
+                             (format nil "~a exits ~a."
+                                    (wrap (player-name player) :bright-blue)
+                                    (item-name vehicle-item))
+                             :include-self nil)
+            (send-room-overview player)))))
+      ((string= verb "uber")
+       (cond
+         ((null (player-vehicle player))
+          (write-crlf (player-stream player)
+                     (wrap "You need to be in a vehicle to use uber." :bright-red)))
+         ((not (eq (mud.inventory::item-vehicle-type (player-vehicle player)) :uber))
+          (write-crlf (player-stream player)
+                     (wrap "This vehicle doesn't support uber travel." :bright-red)))
+         ((zerop (length rest))
+          (write-crlf (player-stream player)
+                     (wrap "Uber to where? Usage: uber <location name>" :bright-red)))
+         (t
+          (let* ((destination-name (string-trim '(#\Space #\Tab) rest))
+                 (destination-room (find-room-by-name destination-name)))
+            (if destination-room
+                (progn
+                  (write-crlf (player-stream player)
+                             (wrap (format nil "The ~a shimmers with energy and instantly transports you to ~a!"
+                                          (item-name (player-vehicle player))
+                                          (mud.world::room-name destination-room))
+                                   :bright-magenta))
+                  (announce-to-room player
+                                   (format nil "~a vanishes in a flash of light!"
+                                          (wrap (player-name player) :bright-blue))
+                                   :include-self nil)
+                  (set-player-room player (mud.world::room-id destination-room))
+                  (send-room-overview player)
+                  (announce-to-room player
+                                   (format nil "~a appears in a flash of light, riding in ~a!"
+                                          (wrap (player-name player) :bright-green)
+                                          (item-name (player-vehicle player)))
+                                   :include-self nil))
+                (write-crlf (player-stream player)
+                           (wrap (format nil "Location '~a' not found." destination-name)
+                                 :bright-red)))))))
       ((string= verb "help")
        (write-crlf (player-stream player)
                    (wrap "Commands:" :bright-yellow))
-       (write-crlf (player-stream player) "  Movement: look (l), go <dir> (n/s/e/w/u/d/ne/nw/se/sw)")
+       (write-crlf (player-stream player) "  Movement: look (l), go <dir> (n/s/e/w/u/d/ne/nw/se/sw), enter <vehicle>, exit, uber <location>")
        (write-crlf (player-stream player) "  Social: say <text>, who")
        (write-crlf (player-stream player) "  Combat: cast <spell> <target>, stats, spells")
        (write-crlf (player-stream player) "  Inventory: inventory (inv/i), use <item>, drop <item>, get <item> (loot corpses)")
-       (write-crlf (player-stream player) "  Other: help, quit, map, . (repeat last command), suicide (test death)"))
+       (write-crlf (player-stream player) "  Other: help, quit, . (repeat last command), suicide (test death)"))
       ((member verb '("quit" "exit") :test #'string=)
        :quit)
       (t
