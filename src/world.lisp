@@ -49,6 +49,7 @@
                "Cobblestone paths converge beneath an [ancient oak], its leaves whispering tales of heroes past. [Lanterns] sway gently, casting golden halos in the dusk."
                '((:north . tavern-common-room)
                  (:east . moonlit-lane)
+                 (:south . village-garden)
                  (:west . market-stalls)
                  (:northwest . graveyard))
                '(("ancient oak" . "The massive oak has stood here for centuries. Carved into its trunk are names of heroes long past, and a small hollow near the base seems to hide something...")
@@ -104,6 +105,13 @@
                '(("tombstones" . "Most inscriptions are illegible, but one reads: 'Here lies the Keeper of Secrets. Death is not the end, merely a door.' Fresh flowers rest at its base, though no one living has been seen placing them.")
                  ("ethereal glow" . "The glow pulses gently, like a heartbeat. Those who have died and returned speak of a presence here - neither malevolent nor kind, simply... waiting.")))
 
+  (define-room 'village-garden
+               "Village Garden"
+               "A small, peaceful garden bursting with life. Rows of vegetables grow alongside fragrant [herbs], and a magnificent [apple tree] stands in the center, its branches heavy with ripe red fruit. The village elder tends to this garden with great care."
+               '((:north . village-square))
+               '(("herbs" . "Lavender, rosemary, and thyme fill the air with their sweet scent. The elder uses these in healing remedies.")
+                 ("apple tree" . "An ancient apple tree, its gnarled branches reaching skyward. The apples look delicious and perfectly ripe.")))
+
   ;; Create and place vehicle items in rooms
   (let ((car-item (mud.inventory::make-item
                    :name "car"
@@ -114,9 +122,14 @@
                      :name "skiff"
                      :type :vehicle
                      :vehicle-type :water
-                     :description "A small wooden boat called 'Eternal Wanderer'. You can enter it to navigate water passages.")))
+                     :description "A small wooden boat called 'Eternal Wanderer'. You can enter it to navigate water passages."))
+        (apple-item (mud.inventory::make-item
+                     :name "apple"
+                     :type :consumable
+                     :description "A perfectly ripe red apple from the village garden. It looks delicious!")))
     (add-item-to-room 'village-square car-item)
-    (add-item-to-room 'riverbank skiff-item)))
+    (add-item-to-room 'riverbank skiff-item)
+    (add-item-to-room 'village-garden apple-item)))
 
 (defun find-room (room-id)
   (gethash room-id *rooms*))

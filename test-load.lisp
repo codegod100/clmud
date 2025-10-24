@@ -1,0 +1,11 @@
+(load "src/packages.lisp")
+(load "src/ansi.lisp")
+(load "src/world.lisp")
+(load "src/player.lisp")
+(load "src/inventory.lisp")
+(load "src/combat.lisp")
+(load "src/quest.lisp")
+
+(mud.quest:initialize-quests)
+(format t "Quests defined: ~a~%" (hash-table-count mud.quest::*quests*))
+(format t "Quest apple-picking: ~a~%" (mud.quest:find-quest 'apple-picking))

@@ -2,6 +2,12 @@
   (:use :cl)
   (:export :wrap :code :strip :gradient))
 
+(defpackage :mud.quest
+  (:use :cl)
+  (:export :define-quest :find-quest :start-quest :check-quest-completion
+           :get-active-quests :initialize-quests :get-player-quest-data
+           :quest-name :quest-description :quest-reward-xp :quest-reward-text))
+
 (defpackage :mud.world
   (:use :cl)
   (:shadow :room)
@@ -14,7 +20,8 @@
   (:export :make-player :player-name :player-room :set-player-room :player-stream :player-socket
            :player-health :player-max-health :player-mana :player-max-mana :player-level
            :set-player-health :set-player-mana :modify-health :modify-mana
-           :player-alive-p :player-inventory :player-vehicle))
+           :player-alive-p :player-inventory :player-vehicle
+           :player-xp :award-xp :xp-to-next-level :xp-for-level))
 
 (defpackage :mud.inventory
   (:use :cl)
@@ -36,9 +43,12 @@
                            :find-facet-in-room :room-facets :find-vehicle :vehicle-name :vehicle-type :vehicle-description)
   (:import-from :mud.player :make-player :player-name :player-room :set-player-room :player-stream :player-socket
                              :player-health :player-max-health :player-mana :player-max-mana :player-level
-                             :modify-health :modify-mana :player-alive-p :player-inventory :player-vehicle)
+                             :modify-health :modify-mana :player-alive-p :player-inventory :player-vehicle
+                             :player-xp :award-xp :xp-to-next-level)
   (:import-from :mud.combat :find-spell :cast-spell :spell-name :spell-cost :spell-damage :spell-description
                             :get-player-stats :respawn-player :*spells* :loot-corpse :handle-player-death)
   (:import-from :mud.inventory :create-item :use-item :add-to-inventory :remove-from-inventory
                                :find-in-inventory :list-inventory :item-name :drop-item :grab-item :item-type)
+  (:import-from :mud.quest :start-quest :check-quest-completion :get-active-quests :initialize-quests
+                           :quest-name :quest-description :quest-reward-xp :quest-reward-text)
   (:export :start :stop :await))

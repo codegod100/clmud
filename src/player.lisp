@@ -11,7 +11,9 @@
    (mana :initarg :mana :accessor player-mana :initform 50)
    (max-mana :initarg :max-mana :accessor player-max-mana :initform 50)
    (level :initarg :level :accessor player-level :initform 1)
-   (inventory :initarg :inventory :accessor player-inventory :initform nil))
+   (xp :initarg :xp :accessor player-xp :initform 0)
+   (inventory :initarg :inventory :accessor player-inventory :initform nil)
+   (quest-state :initarg :quest-state :accessor player-quest-state :initform nil))
   (:documentation "Represents a connected adventurer."))
 
 (defun make-player (&key name room stream socket)
@@ -19,7 +21,9 @@
                          :health 100 :max-health 100
                          :mana 50 :max-mana 50
                          :level 1
-                         :inventory nil))
+                         :xp 0
+                         :inventory nil
+                         :quest-state nil))
 
 (defun set-player-room (player new-room)
   (setf (player-room player) new-room))
@@ -41,3 +45,27 @@
 (defun player-alive-p (player)
   "Check if player is alive"
   (> (player-health player) 0))
+
+(defun xp-for-level (level)
+  "Calculate XP required to reach the given level"
+  (* level 100))
+
+(defun award-xp (player amount)
+  "Award XP to player and handle level-ups"
+  (setf (player-xp player) (+ (player-xp player) amount))
+  (let ((leveled-up nil))
+    (loop while (>= (player-xp player) (xp-for-level (+ (player-level player) 1)))
+          do (progn
+               (setf (player-level player) (+ (player-level player) 1))
+               (setf leveled-up t)
+               ;; Increase stats on level up
+               (setf (player-max-health player) (+ (player-max-health player) 10))
+               (setf (player-health player) (player-max-health player))
+               (setf (player-max-mana player) (+ (player-max-mana player) 5))
+               (setf (player-mana player) (player-max-mana player))))
+    leveled-up))
+
+(defun xp-to-next-level (player)
+  "Calculate XP needed for next level"
+  (- (xp-for-level (+ (player-level player) 1))
+     (player-xp player)))

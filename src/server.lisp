@@ -557,7 +557,29 @@
                                             (format nil "~a gets ~a."
                                                    (wrap (player-name player) :bright-yellow)
                                                    item-name)
-                                            :include-self nil))
+                                            :include-self nil)
+                           ;; Check quest completion after picking up item
+                           (multiple-value-bind (completed leveled-up quest)
+                               (check-quest-completion player :apple-picking)
+                             (when completed
+                               (write-crlf (player-stream player)
+                                          (wrap (format nil "Quest Complete: ~a" (quest-name quest))
+                                                :bright-yellow))
+                               (write-crlf (player-stream player)
+                                          (wrap (quest-reward-text quest) :bright-green))
+                               (write-crlf (player-stream player)
+                                          (wrap (format nil "You gained ~d XP!" (quest-reward-xp quest))
+                                                :bright-cyan))
+                               (when leveled-up
+                                 (write-crlf (player-stream player)
+                                            (wrap (format nil "*** LEVEL UP! You are now level ~d! ***"
+                                                         (player-level player))
+                                                  :bright-magenta))
+                                 (write-crlf (player-stream player)
+                                            (wrap (format nil "Health: +10 (now ~d)  Mana: +5 (now ~d)"
+                                                         (player-max-health player)
+                                                         (player-max-mana player))
+                                                  :bright-green))))))
                          (write-crlf (player-stream player) (wrap message :bright-red)))))))))
       ((string= verb ".")
        (write-crlf (player-stream player) (wrap "No previous command to repeat." :bright-red)))
@@ -662,6 +684,44 @@
                 (write-crlf (player-stream player)
                            (wrap (format nil "Location '~a' not found." destination-name)
                                  :bright-red)))))))
+      ((string= verb "status")
+       (write-crlf (player-stream player)
+                   (wrap (format nil "~a - Level ~d" (player-name player) (player-level player))
+                         :bright-cyan))
+       (write-crlf (player-stream player)
+                   (format nil "Health: ~d/~d  Mana: ~d/~d"
+                          (player-health player) (player-max-health player)
+                          (player-mana player) (player-max-mana player)))
+       (write-crlf (player-stream player)
+                   (format nil "XP: ~d/~d  (Need ~d more to level)"
+                          (player-xp player)
+                          (mud.player::xp-for-level (+ (player-level player) 1))
+                          (xp-to-next-level player))))
+      ((string= verb "quest")
+       (if (zerop (length rest))
+           ;; Show active quests
+           (let ((active-quests (get-active-quests player)))
+             (if active-quests
+                 (progn
+                   (write-crlf (player-stream player)
+                              (wrap "Active Quests:" :bright-yellow))
+                   (dolist (quest active-quests)
+                     (write-crlf (player-stream player)
+                                (format nil "  ~a: ~a"
+                                       (wrap (quest-name quest) :bright-cyan)
+                                       (quest-description quest)))))
+                 (write-crlf (player-stream player)
+                            (wrap "You have no active quests. Try 'quest start apple' to begin your first quest!" :bright-yellow))))
+           ;; Handle quest subcommands
+           (let ((subcommand (string-trim '(#\Space #\Tab) rest)))
+             (cond
+               ((string= subcommand "start apple")
+                (let ((result (start-quest player :apple-picking)))
+                  (write-crlf (player-stream player)
+                             (wrap result :bright-green))))
+               (t
+                (write-crlf (player-stream player)
+                           (wrap "Usage: quest [start apple]" :bright-red)))))))
       ((string= verb "help")
        (write-crlf (player-stream player)
                    (wrap "Commands:" :bright-yellow))
@@ -669,6 +729,7 @@
        (write-crlf (player-stream player) "  Social: say <text>, who")
        (write-crlf (player-stream player) "  Combat: cast <spell> <target>, stats, spells")
        (write-crlf (player-stream player) "  Inventory: inventory (inv/i), use <item>, drop <item>, get <item> (loot corpses)")
+       (write-crlf (player-stream player) "  Quests: quest, quest start apple, status")
        (write-crlf (player-stream player) "  Other: help, quit, . (repeat last command), suicide (test death)"))
       ((member verb '("quit" "exit") :test #'string=)
        :quit)
@@ -733,6 +794,7 @@
   (when *running*
     (error "Server already running."))
   (initialize-world)
+  (initialize-quests)
   (setf *running* t)
   (let ((socket (make-server-socket port)))
     (setf *listener* socket)
