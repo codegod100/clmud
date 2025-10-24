@@ -4,6 +4,7 @@
 
 (defpackage :mud.world
   (:use :cl)
+  (:shadow :room)
   (:export :initialize-world :find-room :starting-room :neighbor :room-id :room-name :room-description :room-exits))
 
 (defpackage :mud.player

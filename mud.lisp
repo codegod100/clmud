@@ -1,11 +1,11 @@
-#!/usr/bin/env sbcl --script
-
 (let* ((script (or *load-truename*
                     (ignore-errors (truename (first sb-ext:*posix-argv*)))))
        (dir (and script (pathname-directory script))))
   (when dir
     (setf *default-pathname-defaults*
           (make-pathname :directory dir :defaults script))))
+
+(require :sb-bsd-sockets)
 
 (load "src/packages.lisp")
 
@@ -55,8 +55,9 @@
         (format *error-output* "~&Failed to start server on port ~a: ~a~%" port err)
         (finish-output *error-output*)
         (sb-ext:exit :code 1)))
-  (format t "~&~a~%" (mud.ansi:wrap (format nil "MUD listening on port ~a. Press Ctrl+C to stop." port)
-                    :bright-magenta))
+    (format t "~&~a~%"
+            (mud.ansi:wrap (format nil "MUD listening on port ~a. Press Ctrl+C to stop." port)
+                           :bright-magenta))
     (finish-output)
     (handler-case
         (mud.server:await)
@@ -69,9 +70,9 @@
         (finish-output *error-output*)
         (mud.server:stop)
         (sb-ext:exit :code 1)))
-  (mud.server:stop)
-  (format t "~&~a~%" (mud.ansi:wrap "Server stopped." :bright-black))
-  (finish-output)
-  (sb-ext:exit :code 0)))
+    (mud.server:stop)
+    (format t "~&~a~%" (mud.ansi:wrap "Server stopped." :bright-black))
+    (finish-output)
+    (sb-ext:exit :code 0)))
 
 (main)

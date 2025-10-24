@@ -17,7 +17,7 @@
 (defconstant +cr+ 13)
 (defconstant +lf+ 10)
 
-(defun log (fmt &rest args)
+(defun server-log (fmt &rest args)
   (apply #'format *error-output* (concatenate 'string fmt "~%") args)
   (finish-output *error-output*))
 
@@ -89,11 +89,12 @@
                (when (characterp result)
                  (write-char result buffer))))
             (t
-             (write-char char buffer)))))))
+             (write-char char buffer))))))))
 
 (defun write-crlf (stream text)
   (write-string text stream)
-  (write-string "\r\n" stream)
+  (write-char #\Return stream)
+  (write-char #\Linefeed stream)
   (finish-output stream))
 
 (defun prompt (stream)
@@ -153,13 +154,12 @@
   (let ((room (current-room player)))
     (when room
       (let ((stream (player-stream player)))
-        (write-crlf stream
-                    (wrap (format nil "~a" (room-name room)) :bold :bright-cyan))
+        (write-crlf stream (wrap (format nil "~a" (room-name room)) :bold :bright-cyan))
         (write-crlf stream (room-description room))
         (write-crlf stream "")
-        (let ((exits (mapcar (lambda (pair) (string-upcase (symbol-name (car pair)))) (room-exits room))))
-          (write-crlf stream
-                      (wrap (format nil "Exits: ~{~a~^, ~}" exits) :bright-yellow))))))
+        (let ((exits (mapcar (lambda (pair) (string-upcase (symbol-name (car pair))))
+                              (room-exits room))))
+          (write-crlf stream (wrap (format nil "Exits: ~{~a~^, ~}" exits) :bright-yellow)))))))
 
 (defun move-player (player direction)
   (let* ((room (current-room player))
@@ -186,7 +186,7 @@
       (dolist (other *clients*)
         (when (and (eq (player-room other) room-id)
                    (or include-self (not (eq other player))))
-          (ignore-errors (write-crlf (player-stream other) message))))))))
+          (ignore-errors (write-crlf (player-stream other) message)))))))
 
 (defun handle-say (player text)
   (let ((clean (string-trim '(#\Space #\Tab) text)))
@@ -211,6 +211,22 @@
                                         (subseq trimmed split)))
               (values (string-downcase trimmed) ""))))))
 
+(defun normalize-direction (dir-string)
+  "Convert direction string to keyword, handling single-letter aliases"
+  (let ((dir (string-downcase dir-string)))
+    (cond
+      ((string= dir "n") :north)
+      ((string= dir "s") :south)
+      ((string= dir "e") :east)
+      ((string= dir "w") :west)
+      ((string= dir "u") :up)
+      ((string= dir "d") :down)
+      ((string= dir "ne") :northeast)
+      ((string= dir "nw") :northwest)
+      ((string= dir "se") :southeast)
+      ((string= dir "sw") :southwest)
+      (t (intern (string-upcase dir) :keyword)))))
+
 (defun handle-command (player line)
   (multiple-value-bind (verb rest) (parse-command line)
     (cond
@@ -221,8 +237,10 @@
        (if (zerop (length rest))
            (write-crlf (player-stream player) (wrap "Go where?" :bright-red))
            (let* ((dir-token (subseq rest 0 (or (position-if #'whitespace-char-p rest) (length rest))))
-                  (keyword (intern (string-upcase dir-token) :keyword)))
+                  (keyword (normalize-direction dir-token)))
              (move-player player keyword))))
+      ((member verb '("n" "s" "e" "w" "u" "d" "ne" "nw" "se" "sw") :test #'string=)
+       (move-player player (normalize-direction verb)))
       ((string= verb "say")
        (handle-say player rest))
       ((string= verb "who")
@@ -235,7 +253,7 @@
                              :bright-magenta)))))
       ((string= verb "help")
        (write-crlf (player-stream player)
-                   (wrap "Commands: look, go <dir>, say <text>, who, help, quit" :bright-yellow)))
+                   (wrap "Commands: look (l), go <dir> (n/s/e/w/u/d/ne/nw/se/sw), say <text>, who, help, quit" :bright-yellow)))
       ((member verb '("quit" "exit") :test #'string=)
        :quit)
       (t
@@ -262,27 +280,28 @@
                    (return))
                  (case (handle-command player line)
                    (:quit
-                     (setf graceful t)
-                     (write-crlf stream (wrap "May the stars guide your steps." :bright-yellow))
-                     (return))))))))
+                    (setf graceful t)
+                    (write-crlf stream (wrap "May the stars guide your steps." :bright-yellow))
+                    (return))))))))
       (when player
-        (announce-to-room player (if graceful
-                                      (format nil "~a fades into the night." (wrap (player-name player) :bright-blue))
-                                      (format nil "~a disconnects." (wrap (player-name player) :bright-red)))))
+        (announce-to-room player
+                          (if graceful
+                              (format nil "~a fades into the night." (wrap (player-name player) :bright-blue))
+                              (format nil "~a disconnects." (wrap (player-name player) :bright-red)))))
       (when player
         (remove-client player))
       (ignore-errors (close stream))
-      (ignore-errors (close socket)))))
+      (ignore-errors (close socket))))
 
 (defun accept-loop (socket)
   (loop while *running* do
     (handler-case
         (let* ((client (socket-accept socket))
                (stream (socket-make-stream client :input t :output t :element-type 'character :external-format :latin-1 :buffering :line)))
-          (make-thread (lambda () (client-loop client stream)) :name "mud-client"))
+          (make-thread #'client-loop :name "mud-client" :arguments (list client stream)))
       (socket-error (err)
         (when *running*
-          (log "Socket error: ~a" err))))))
+          (server-log "Socket error: ~a" err))))))
 
 (defun start (&key (port 4000))
   (when *running*
@@ -293,7 +312,7 @@
     (setf *listener* socket)
     (setf *listener-thread*
           (make-thread (lambda () (accept-loop socket)) :name "mud-acceptor"))
-    (log "MUD listening on port ~a" port)
+    (server-log "MUD listening on port ~a" port)
     *listener*))
 
 (defun stop ()
@@ -309,7 +328,7 @@
         (ignore-errors (close (player-stream client)))
         (ignore-errors (close (player-socket client))))
       (setf *clients* '()))
-    (log "MUD server stopped.")))
+    (server-log "MUD server stopped.")))
 
 (defun await ()
   (when *listener-thread*
