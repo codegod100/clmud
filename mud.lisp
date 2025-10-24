@@ -12,6 +12,8 @@
 (load "src/ansi.lisp")
 (load "src/world.lisp")
 (load "src/player.lisp")
+(load "src/inventory.lisp")
+(load "src/combat.lisp")
 (load "src/server.lisp")
 
 (defun string-prefix-p (prefix string)

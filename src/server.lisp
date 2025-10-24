@@ -70,6 +70,23 @@
 
 (defparameter *whitespace-chars* '(#\Space #\Tab #\Newline #\Return))
 
+(defun skip-ansi-sequence (stream)
+  "Skip ANSI escape sequences (arrow keys, etc.)"
+  (let ((next-char (read-char stream nil nil)))
+    (when next-char
+      (cond
+        ;; CSI sequences: ESC [ ... letter
+        ((char= next-char #\[)
+         (loop for ch = (read-char stream nil nil)
+               while (and ch (not (alpha-char-p ch)))))
+        ;; OSC sequences: ESC ] ... BEL or ST
+        ((char= next-char #\])
+         (loop for ch = (read-char stream nil nil)
+               while (and ch (not (or (char= ch (code-char 7))
+                                     (char= ch #\Backslash))))))
+        ;; Other escape sequences - just read one more char
+        (t nil)))))
+
 (defun read-telnet-line (stream)
   (let ((buffer (make-string-output-stream)))
     (loop
@@ -88,6 +105,9 @@
              (let ((result (handle-iac stream)))
                (when (characterp result)
                  (write-char result buffer))))
+            ((= code 27)
+             ;; ESC - skip ANSI escape sequence
+             (skip-ansi-sequence stream))
             (t
              (write-char char buffer))))))))
 
@@ -151,11 +171,25 @@
     (find-room room-id)))
 
 (defun send-room-overview (player)
-  (let ((room (current-room player)))
+  (let ((room (find-room (player-room player))))
     (when room
       (let ((stream (player-stream player)))
         (write-crlf stream (wrap (format nil "~a" (room-name room)) :bold :bright-cyan))
         (write-crlf stream (room-description room))
+        (write-crlf stream "")
+        ;; Show other players in the room
+        (with-mutex (*clients-lock*)
+          (let ((others (remove-if (lambda (p) (or (eq p player)
+                                                    (not (eq (player-room p) (player-room player)))))
+                                   *clients*)))
+            (when others
+              (write-crlf stream (wrap (format nil "Also here: ~{~a~^, ~}"
+                                              (mapcar #'player-name others))
+                                      :bright-green)))))
+        ;; Show items on the ground
+        (let ((items-str (list-room-items (player-room player))))
+          (when items-str
+            (write-crlf stream (wrap (format nil "Items: ~a" items-str) :bright-white))))
         (write-crlf stream "")
         (let ((exits (mapcar (lambda (pair) (string-upcase (symbol-name (car pair))))
                               (room-exits room))))
@@ -180,25 +214,84 @@
           (send-room-overview player)
           t))))
 
-(defun announce-to-room (player message &key (include-self nil))
+(defun announce-to-room (player message &key (include-self nil) (exclude nil))
   (let ((room-id (player-room player)))
     (with-mutex (*clients-lock*)
       (dolist (other *clients*)
         (when (and (eq (player-room other) room-id)
-                   (or include-self (not (eq other player))))
+                   (or include-self (not (eq other player)))
+                   (not (member other exclude)))
           (ignore-errors (write-crlf (player-stream other) message)))))))
 
 (defun handle-say (player text)
   (let ((clean (string-trim '(#\Space #\Tab) text)))
     (if (zerop (length clean))
         (write-crlf (player-stream player) (wrap "Say what?" :bright-red))
-        (progn
-          (announce-to-room player
-                             (format nil "~a says: ~a"
-                                     (wrap (player-name player) :bright-green)
-                                     clean)
-                             :include-self t)
-          t))))
+        (announce-to-room player
+                          (format nil "~a says: ~a"
+                                  (wrap (player-name player) :bright-green)
+                                  clean)
+                          :include-self t))))
+
+(defun find-player-by-name (name)
+  "Find a connected player by name (case-insensitive)"
+  (with-mutex (*clients-lock*)
+    (find-if (lambda (p)
+               (string-equal (player-name p) name))
+             *clients*)))
+
+(defun handle-cast (caster spell-and-target)
+  "Handle casting a spell: cast <spell> <target>"
+  (let* ((parts (split-on-whitespace spell-and-target))
+         (spell-name (first parts))
+         (target-name (second parts)))
+    (cond
+      ((null spell-name)
+       (write-crlf (player-stream caster) (wrap "Cast what? Usage: cast <spell> <target>" :bright-red)))
+      ((null target-name)
+       (write-crlf (player-stream caster) (wrap "Cast at whom? Usage: cast <spell> <target>" :bright-red)))
+      (t
+       (let ((target (find-player-by-name target-name)))
+         (cond
+           ((null target)
+            (write-crlf (player-stream caster)
+                       (wrap (format nil "No player named '~a' is here." target-name) :bright-red)))
+           ((not (eq (player-room caster) (player-room target)))
+            (write-crlf (player-stream caster)
+                       (wrap (format nil "~a is not in this room." (player-name target)) :bright-red)))
+           (t
+            (multiple-value-bind (success message) (cast-spell caster target spell-name)
+              (if success
+                  (progn
+                    (write-crlf (player-stream caster) (wrap message :bright-magenta))
+                    (unless (eq caster target)
+                      (write-crlf (player-stream target)
+                                 (wrap (format nil "~a casts ~a at you!"
+                                              (player-name caster) spell-name)
+                                       :bright-red))
+                      (announce-to-room caster
+                                       (format nil "~a casts ~a at ~a!"
+                                              (wrap (player-name caster) :bright-yellow)
+                                              spell-name
+                                              (wrap (player-name target) :bright-yellow))
+                                       :exclude (list caster target))))
+                  (write-crlf (player-stream caster) (wrap message :bright-red)))))))))))
+
+(defun split-on-whitespace (text)
+  "Split text on whitespace into a list of words"
+  (let ((trimmed (string-trim '(#\Space #\Tab) text)))
+    (if (zerop (length trimmed))
+        nil
+        (loop with start = 0
+              with len = (length trimmed)
+              while (< start len)
+              for end = (or (position-if (lambda (c) (or (char= c #\Space) (char= c #\Tab)))
+                                         trimmed :start start)
+                           len)
+              collect (subseq trimmed start end)
+              do (setf start (position-if-not (lambda (c) (or (char= c #\Space) (char= c #\Tab)))
+                                             trimmed :start end))
+              while start))))
 
 (defun parse-command (line)
   (let* ((trimmed (string-trim *whitespace-chars* line)))
@@ -251,9 +344,82 @@
                                  (format nil "Wanderers about: ~{~a~^, ~}" names)
                                  "You are alone in the twilight.")
                              :bright-magenta)))))
+      ((string= verb "stats")
+       (write-crlf (player-stream player)
+                   (wrap (get-player-stats player) :bright-cyan)))
+      ((string= verb "spells")
+       (write-crlf (player-stream player)
+                   (wrap "Available spells:" :bright-yellow))
+       (dolist (spell *spells*)
+         (write-crlf (player-stream player)
+                     (format nil "  ~a (~d mana, ~a dmg) - ~a"
+                            (wrap (spell-name spell) :bright-magenta)
+                            (spell-cost spell)
+                            (if (minusp (spell-damage spell))
+                                (format nil "heals ~d" (abs (spell-damage spell)))
+                                (spell-damage spell))
+                            (spell-description spell)))))
+      ((string= verb "cast")
+       (handle-cast player rest))
+      ((string= verb "respawn")
+       (if (player-alive-p player)
+           (write-crlf (player-stream player) (wrap "You are already alive!" :bright-red))
+           (progn
+             (respawn-player player)
+             (write-crlf (player-stream player)
+                        (wrap "You have respawned with full health and mana!" :bright-green))
+             (announce-to-room player
+                              (format nil "~a materializes from the void!"
+                                     (wrap (player-name player) :bright-green))
+                              :include-self nil))))
+      ((member verb '("inventory" "inv" "i") :test #'string=)
+       (write-crlf (player-stream player) (list-inventory player)))
+      ((string= verb "use")
+       (if (zerop (length rest))
+           (write-crlf (player-stream player) (wrap "Use what? Usage: use <item>" :bright-red))
+           (let ((item-name (string-trim '(#\Space #\Tab) rest)))
+             (multiple-value-bind (success message) (use-item player item-name)
+               (if success
+                   (write-crlf (player-stream player) (wrap message :bright-green))
+                   (write-crlf (player-stream player) (wrap message :bright-red)))))))
+      ((string= verb "drop")
+       (if (zerop (length rest))
+           (write-crlf (player-stream player) (wrap "Drop what? Usage: drop <item>" :bright-red))
+           (let ((item-name (string-trim '(#\Space #\Tab) rest)))
+             (multiple-value-bind (success message) (drop-item player item-name)
+               (if success
+                   (progn
+                     (write-crlf (player-stream player) (wrap message :bright-green))
+                     (announce-to-room player
+                                      (format nil "~a drops ~a."
+                                             (wrap (player-name player) :bright-yellow)
+                                             item-name)
+                                      :include-self nil))
+                   (write-crlf (player-stream player) (wrap message :bright-red)))))))
+      ((string= verb "grab")
+       (if (zerop (length rest))
+           (write-crlf (player-stream player) (wrap "Grab what? Usage: grab <item>" :bright-red))
+           (let ((item-name (string-trim '(#\Space #\Tab) rest)))
+             (multiple-value-bind (success message) (grab-item player item-name)
+               (if success
+                   (progn
+                     (write-crlf (player-stream player) (wrap message :bright-green))
+                     (announce-to-room player
+                                      (format nil "~a grabs ~a."
+                                             (wrap (player-name player) :bright-yellow)
+                                             item-name)
+                                      :include-self nil))
+                   (write-crlf (player-stream player) (wrap message :bright-red)))))))
+      ((string= verb ".")
+       (write-crlf (player-stream player) (wrap "No previous command to repeat." :bright-red)))
       ((string= verb "help")
        (write-crlf (player-stream player)
-                   (wrap "Commands: look (l), go <dir> (n/s/e/w/u/d/ne/nw/se/sw), say <text>, who, help, quit" :bright-yellow)))
+                   (wrap "Commands:" :bright-yellow))
+       (write-crlf (player-stream player) "  Movement: look (l), go <dir> (n/s/e/w/u/d/ne/nw/se/sw)")
+       (write-crlf (player-stream player) "  Social: say <text>, who")
+       (write-crlf (player-stream player) "  Combat: cast <spell> <target>, stats, spells, respawn")
+       (write-crlf (player-stream player) "  Inventory: inventory (inv/i), use <item>, drop <item>, grab <item>")
+       (write-crlf (player-stream player) "  Other: help, quit, . (repeat last command)"))
       ((member verb '("quit" "exit") :test #'string=)
        :quit)
       (t
@@ -269,20 +435,30 @@
            (let* ((start (starting-room))
                   (room-id (room-id start)))
              (setf player (make-player :name name :room room-id :stream stream :socket socket))
+             ;; Give starting inventory: 3 mana potions
+             (dotimes (i 3)
+               (add-to-inventory player (create-item "mana-potion")))
              (add-client player)
              (write-crlf stream (wrap "Welcome to the Endless Evening." :bright-cyan))
              (announce-to-room player (format nil "~a arrives." (wrap name :bright-green)) :include-self nil)
              (send-room-overview player)
-             (loop
-               (prompt stream)
-               (let ((line (read-telnet-line stream)))
-                 (when (null line)
-                   (return))
-                 (case (handle-command player line)
-                   (:quit
-                    (setf graceful t)
-                    (write-crlf stream (wrap "May the stars guide your steps." :bright-yellow))
-                    (return))))))))
+             (let ((last-command nil))
+               (loop
+                 (prompt stream)
+                 (let ((line (read-telnet-line stream)))
+                   (when (null line)
+                     (return))
+                   ;; Handle '.' repeat command
+                   (when (and (string= line ".") last-command)
+                     (setf line last-command))
+                   ;; Store command for repeat (unless it's a '.')
+                   (unless (string= line ".")
+                     (setf last-command line))
+                   (case (handle-command player line)
+                     (:quit
+                      (setf graceful t)
+                      (write-crlf stream (wrap "May the stars guide your steps." :bright-yellow))
+                      (return)))))))))
       (when player
         (announce-to-room player
                           (if graceful

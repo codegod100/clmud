@@ -4,7 +4,8 @@
   id
   name
   description
-  exits)
+  exits
+  (items nil :type list))
 
 (defparameter *rooms* (make-hash-table :test #'eq))
 (defparameter *starting-room* 'village-square)
@@ -37,7 +38,7 @@
                  (:east . whispering-wood)))
   (define-room 'whispering-wood
                "Whispering Wood"
-               "Towering pines murmur secrets overhead, their needles shimmering with dew. Somewhere deeper within, an owl hoots, beckoning the brave." 
+               "Towering pines murmur secrets overhead, their needles shimmering with dew. Somewhere deeper within, an owl hoots, beckoning the brave."
                '((:west . moonlit-lane)))
   (define-room 'market-stalls
                "Closing Market"
@@ -58,3 +59,45 @@
 
 (defun neighbor (room direction)
   (cdr (assoc direction (room-exits room))))
+
+(defun add-item-to-room (room-id item)
+  "Add an item to a room"
+  (let ((room (find-room room-id)))
+    (when room
+      (push item (room-items room)))))
+
+(defun remove-item-from-room (room-id item)
+  "Remove a specific item from a room"
+  (let ((room (find-room room-id)))
+    (when room
+      (setf (room-items room)
+            (remove item (room-items room) :test #'eq)))))
+
+(defun find-item-in-room (room-id item-name)
+  "Find the first item in a room matching the name"
+  (let ((room (find-room room-id)))
+    (when room
+      (find-if (lambda (item)
+                 (string-equal (mud.inventory::item-name item) item-name))
+               (room-items room)))))
+
+(defun list-room-items (room-id)
+  "Return a formatted list of items in a room"
+  (let ((room (find-room room-id)))
+    (when room
+      (let ((items (room-items room)))
+        (if (null items)
+            nil
+            (let ((item-counts (make-hash-table :test 'equal)))
+              ;; Count items by name
+              (dolist (item items)
+                (incf (gethash (mud.inventory::item-name item) item-counts 0)))
+              ;; Build string with counts
+              (with-output-to-string (out)
+                (maphash (lambda (name count)
+                           (format out "~a~a"
+                                  (if (> count 1)
+                                      (format nil "~a (x~d)" name count)
+                                      name)
+                                  (if (> (hash-table-count item-counts) 1) ", " "")))
+                         item-counts))))))))
