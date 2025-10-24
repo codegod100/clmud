@@ -7,15 +7,17 @@
 
 (require :sb-bsd-sockets)
 
-(load "src/packages.lisp")
-
-(load "src/ansi.lisp")
-(load "src/world.lisp")
-(load "src/player.lisp")
-(load "src/inventory.lisp")
-(load "src/combat.lisp")
-(load "src/quest.lisp")
-(load "src/server.lisp")
+;; Suppress compiler warnings but allow errors to show
+(handler-bind ((warning #'muffle-warning))
+  (load "src/packages.lisp")
+  (load "src/ansi.lisp")
+  (load "src/world.lisp")
+  (load "src/player.lisp")
+  (load "src/inventory.lisp")
+  (load "src/combat.lisp")
+  (load "src/quest.lisp")
+  (load "src/mob.lisp")
+  (load "src/server.lisp"))
 
 (defun string-prefix-p (prefix string)
   (and (<= (length prefix) (length string))

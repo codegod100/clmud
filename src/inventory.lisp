@@ -3,11 +3,15 @@
 ;;; Item structure
 (defstruct item
   (name "" :type string)
-  (type :consumable :type keyword)  ; :consumable, :equipment, :key, :vehicle, etc.
+  (type :consumable :type keyword)  ; :consumable, :weapon, :armor, :key, :vehicle, etc.
   (effect nil :type (or null keyword))  ; :restore-mana, :restore-health, etc.
   (value 0 :type integer)  ; Amount of effect (mana/health restored, etc.)
   (description "" :type string)
-  (vehicle-type nil :type (or null keyword)))  ; :water, :uber, etc. (for vehicle items)
+  (vehicle-type nil :type (or null keyword))  ; :water, :uber, etc. (for vehicle items)
+  ;; Equipment stats
+  (damage 0 :type integer)  ; Weapon damage bonus
+  (armor 0 :type integer)   ; Armor defense rating
+  (slot nil :type (or null keyword)))  ; :weapon, :armor, :head, :hands, etc.
 
 ;;; Item templates (blueprints for creating items)
 (defparameter *item-templates*
@@ -26,7 +30,51 @@
               :type :consumable
               :effect :restore-mana
               :value 50
-              :description "A glowing azure flask that fully restores mana."))
+              :description "A glowing azure flask that fully restores mana.")
+   ;; Weapons
+   (make-item :name "rusty-dagger"
+              :type :weapon
+              :damage 5
+              :slot :weapon
+              :description "A rusty, chipped dagger. Better than nothing.")
+   (make-item :name "bone-sword"
+              :type :weapon
+              :damage 10
+              :slot :weapon
+              :description "A sword carved from ancient bones, surprisingly sharp.")
+   (make-item :name "steel-sword"
+              :type :weapon
+              :damage 15
+              :slot :weapon
+              :description "A well-crafted steel sword with a keen edge.")
+   (make-item :name "guardian-axe"
+              :type :weapon
+              :damage 25
+              :slot :weapon
+              :description "A massive axe imbued with the power of nature. Vines wrap around its handle.")
+   ;; Armor
+   (make-item :name "rusted-chainmail"
+              :type :armor
+              :armor 5
+              :slot :armor
+              :description "Old chainmail with rust spots, but still provides some protection.")
+   (make-item :name "leather-armor"
+              :type :armor
+              :armor 10
+              :slot :armor
+              :description "Supple leather armor, well-maintained and flexible.")
+   (make-item :name "nature-amulet"
+              :type :armor
+              :armor 15
+              :slot :armor
+              :description "A mystical amulet that pulses with natural magic, offering protection.")
+   ;; Other loot
+   (make-item :name "wolf-pelt"
+              :type :consumable
+              :description "A grey wolf pelt. Could be sold for coin.")
+   (make-item :name "gold-coins"
+              :type :consumable
+              :description "A small pouch of gold coins."))
   "List of item templates")
 
 (defun find-item-template (name)

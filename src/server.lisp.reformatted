@@ -1,0 +1,1130 @@
+
+(IN-PACKAGE :MUD.SERVER)
+
+
+(DECLAIM
+ (FTYPE (FUNCTION (T T &KEY (:INCLUDE-SELF T) (:EXCLUDE T)) T)
+  ANNOUNCE-TO-ROOM))
+
+
+(DEFPARAMETER *LISTENER* NIL)
+
+
+(DEFPARAMETER *LISTENER-THREAD* NIL)
+
+
+(DEFPARAMETER *CLIENTS* 'NIL)
+
+
+(DEFPARAMETER *CLIENTS-LOCK* (MAKE-MUTEX :NAME "clients-lock"))
+
+
+(DEFPARAMETER *RUNNING* NIL)
+
+
+(DEFCONSTANT +IAC+ 255)
+
+
+(DEFCONSTANT +WILL+ 251)
+
+
+(DEFCONSTANT +WONT+ 252)
+
+
+(DEFCONSTANT +DO+ 253)
+
+
+(DEFCONSTANT +DONT+ 254)
+
+
+(DEFCONSTANT +SB+ 250)
+
+
+(DEFCONSTANT +SE+ 240)
+
+
+(DEFCONSTANT +GA+ 249)
+
+
+(DEFCONSTANT +CR+ 13)
+
+
+(DEFCONSTANT +LF+ 10)
+
+
+(DEFUN SERVER-LOG (FMT &REST ARGS)
+  (APPLY #'FORMAT *ERROR-OUTPUT* (CONCATENATE 'STRING FMT "~%") ARGS)
+  (FINISH-OUTPUT *ERROR-OUTPUT*))
+
+
+(DEFUN MAKE-SERVER-SOCKET (PORT)
+  (LET ((SOCKET (MAKE-INSTANCE 'INET-SOCKET :TYPE :STREAM :PROTOCOL :TCP)))
+    (SETF (SOCKOPT-REUSE-ADDRESS SOCKET) T)
+    (SOCKET-BIND SOCKET (MAKE-INET-ADDRESS "0.0.0.0") PORT)
+    (SOCKET-LISTEN SOCKET 64)
+    SOCKET))
+
+
+(DEFUN SEND-IAC (STREAM COMMAND OPTION)
+  (WRITE-CHAR (CODE-CHAR +IAC+) STREAM)
+  (WRITE-CHAR (CODE-CHAR COMMAND) STREAM)
+  (WRITE-CHAR (CODE-CHAR OPTION) STREAM)
+  (FINISH-OUTPUT STREAM))
+
+
+(DEFUN SKIP-SUBNEGOTIATION (STREAM)
+  (LOOP
+   (LET ((CHAR (READ-CHAR STREAM NIL NIL)))
+     (WHEN (NULL CHAR) (RETURN))
+     (WHEN
+         (AND (= (CHAR-CODE CHAR) +IAC+)
+              (LET ((CMD (READ-CHAR STREAM NIL NIL)))
+                (WHEN CMD (= (CHAR-CODE CMD) +SE+))))
+       (RETURN)))))
+
+
+(DEFUN HANDLE-IAC (STREAM)
+  (LET ((COMMAND (READ-CHAR STREAM NIL NIL)))
+    (COND ((NULL COMMAND) NIL)
+          ((= (CHAR-CODE COMMAND) +IAC+) (CODE-CHAR +IAC+))
+          (T
+           (LET ((CMD-CODE (CHAR-CODE COMMAND)))
+             (COND
+              ((MEMBER CMD-CODE (LIST +DO+ +DONT+ +WILL+ +WONT+))
+               (LET ((OPTION (READ-CHAR STREAM NIL NIL)))
+                 (WHEN OPTION
+                   (ECASE CMD-CODE
+                     (+DO+ (SEND-IAC STREAM +WONT+ (CHAR-CODE OPTION)))
+                     (+DONT+ (SEND-IAC STREAM +WONT+ (CHAR-CODE OPTION)))
+                     (+WILL+ (SEND-IAC STREAM +DONT+ (CHAR-CODE OPTION)))
+                     (+WONT+ (SEND-IAC STREAM +DONT+ (CHAR-CODE OPTION)))))
+                 NIL))
+              ((= CMD-CODE +SB+) (SKIP-SUBNEGOTIATION STREAM) NIL) (T NIL)))))))
+
+
+(DEFPARAMETER *WHITESPACE-CHARS* '(#\  #\Tab #\Newline #\Return))
+
+
+(DEFUN SKIP-ANSI-SEQUENCE (STREAM)
+  "Skip ANSI escape sequences (arrow keys, etc.)"
+  (LET ((NEXT-CHAR (READ-CHAR STREAM NIL NIL)))
+    (WHEN NEXT-CHAR
+      (COND
+       ((CHAR= NEXT-CHAR #\[)
+        (LOOP FOR CH = (READ-CHAR STREAM NIL NIL)
+              WHILE (AND CH (NOT (ALPHA-CHAR-P CH)))))
+       ((CHAR= NEXT-CHAR #\])
+        (LOOP FOR CH = (READ-CHAR STREAM NIL NIL)
+              WHILE (AND CH
+                         (NOT (OR (CHAR= CH (CODE-CHAR 7)) (CHAR= CH #\\))))))
+       (T NIL)))))
+
+
+(DEFUN READ-TELNET-LINE (STREAM)
+  (LET ((BUFFER (MAKE-STRING-OUTPUT-STREAM)))
+    (LOOP
+     (LET ((CHAR (READ-CHAR STREAM NIL NIL)))
+       (WHEN (NULL CHAR) (RETURN-FROM READ-TELNET-LINE NIL))
+       (LET ((CODE (CHAR-CODE CHAR)))
+         (COND
+          ((= CODE +LF+)
+           (RETURN
+            (STRING-RIGHT-TRIM *WHITESPACE-CHARS*
+                               (GET-OUTPUT-STREAM-STRING BUFFER))))
+          ((= CODE +CR+) NIL)
+          ((= CODE +IAC+)
+           (LET ((RESULT (HANDLE-IAC STREAM)))
+             (WHEN (CHARACTERP RESULT) (WRITE-CHAR RESULT BUFFER))))
+          ((= CODE 27) (SKIP-ANSI-SEQUENCE STREAM))
+          (T (WRITE-CHAR CHAR BUFFER))))))))
+
+
+(DEFUN WRITE-CRLF (STREAM TEXT)
+  (WRITE-STRING TEXT STREAM)
+  (WRITE-CHAR #\Return STREAM)
+  (WRITE-CHAR #\Newline STREAM)
+  (FINISH-OUTPUT STREAM))
+
+
+(DEFUN PROMPT (STREAM) (WRITE-STRING "> " STREAM) (FINISH-OUTPUT STREAM))
+
+
+(DEFUN BROADCAST (MESSAGE &OPTIONAL EXCEPT)
+  (WITH-MUTEX (*CLIENTS-LOCK*)
+   (DOLIST (CLIENT *CLIENTS*)
+     (UNLESS (EQ CLIENT EXCEPT)
+       (LET ((STREAM (PLAYER-STREAM CLIENT)))
+         (WHEN STREAM (IGNORE-ERRORS (WRITE-CRLF STREAM MESSAGE))))))))
+
+
+(DEFUN ADD-CLIENT (PLAYER)
+  (WITH-MUTEX (*CLIENTS-LOCK*) (PUSH PLAYER *CLIENTS*)))
+
+
+(DEFUN REMOVE-CLIENT (PLAYER)
+  (WITH-MUTEX (*CLIENTS-LOCK*)
+   (SETF *CLIENTS* (REMOVE PLAYER *CLIENTS* :TEST #'EQ))))
+
+
+(DEFUN UNIQUE-NAME-P (NAME)
+  (WITH-MUTEX (*CLIENTS-LOCK*)
+   (NOT (FIND NAME *CLIENTS* :TEST #'STRING-EQUAL :KEY #'PLAYER-NAME))))
+
+
+(DEFUN SANITIZE-NAME (RAW)
+  (LET* ((TRIMMED (STRING-TRIM *WHITESPACE-CHARS* RAW))
+         (STRIPPED (STRIP TRIMMED))
+         (LIMITED (SUBSEQ STRIPPED 0 (MIN 20 (LENGTH STRIPPED)))))
+    (STRING-CAPITALIZE LIMITED)))
+
+
+(DEFUN WHITESPACE-CHAR-P (CH) (MEMBER CH *WHITESPACE-CHARS* :TEST #'CHAR-EQUAL))
+
+
+(DEFUN ASK-FOR-NAME (STREAM)
+  (LOOP
+   (WRITE-CRLF STREAM (WRAP "What is your name, traveler?" :BRIGHT-YELLOW))
+   (WRITE-STRING "> " STREAM)
+   (FINISH-OUTPUT STREAM)
+   (LET ((LINE (READ-TELNET-LINE STREAM)))
+     (WHEN (NULL LINE) (RETURN-FROM ASK-FOR-NAME NIL))
+     (LET ((NAME (SANITIZE-NAME LINE)))
+       (COND
+        ((ZEROP (LENGTH NAME))
+         (WRITE-CRLF STREAM
+          (WRAP "Names must contain at least one visible character."
+           :BRIGHT-RED)))
+        ((NOT (UNIQUE-NAME-P NAME))
+         (WRITE-CRLF STREAM (WRAP "That name is already in use." :BRIGHT-RED)))
+        (T (RETURN NAME)))))))
+
+
+(DEFUN CURRENT-ROOM (PLAYER)
+  (LET ((ROOM-ID (PLAYER-ROOM PLAYER)))
+    (FIND-ROOM ROOM-ID)))
+
+
+(DEFUN COLORIZE-FACETS (TEXT)
+  "Replace [facet] markers with colorized text"
+  (WITH-OUTPUT-TO-STRING (OUT)
+    (LET ((POS 0))
+      (LOOP
+       (LET ((START (SEARCH "[" TEXT :START2 POS)))
+         (IF (NULL START)
+             (PROGN (WRITE-STRING (SUBSEQ TEXT POS) OUT) (RETURN))
+             (LET ((END (SEARCH "]" TEXT :START2 START)))
+               (IF (NULL END)
+                   (PROGN (WRITE-STRING (SUBSEQ TEXT POS) OUT) (RETURN))
+                   (PROGN
+                    (WRITE-STRING (SUBSEQ TEXT POS START) OUT)
+                    (LET ((FACET-NAME (SUBSEQ TEXT (1+ START) END)))
+                      (WRITE-STRING (WRAP FACET-NAME :BRIGHT-YELLOW) OUT))
+                    (SETF POS (1+ END)))))))))))
+
+
+(DEFUN HANDLE-LOOK-AT (PLAYER REST)
+  "Handle looking at a specific target"
+  (LET ((TARGET-NAME (STRING-TRIM '(#\  #\Tab) REST)))
+    (LET ((TARGET-PLAYER NIL))
+      (WITH-MUTEX (*CLIENTS-LOCK*)
+       (SETF TARGET-PLAYER
+               (FIND-IF
+                (LAMBDA (P)
+                  (AND (NOT (EQ P PLAYER))
+                       (EQ (PLAYER-ROOM P) (PLAYER-ROOM PLAYER))
+                       (STRING-EQUAL (PLAYER-NAME P) TARGET-NAME)))
+                *CLIENTS*)))
+      (COND
+       (TARGET-PLAYER
+        (WRITE-CRLF (PLAYER-STREAM PLAYER)
+         (WRAP
+          (FORMAT NIL "~a stands here. ~a" (PLAYER-NAME TARGET-PLAYER)
+                  (GET-PLAYER-STATS TARGET-PLAYER))
+          :BRIGHT-GREEN)))
+       (T
+        (LET ((MOB (FIND-MOB-IN-ROOM (PLAYER-ROOM PLAYER) TARGET-NAME)))
+          (IF MOB
+              (WRITE-CRLF (PLAYER-STREAM PLAYER)
+               (WRAP
+                (FORMAT NIL "~a: ~a~%Health: ~d/~d  Damage: ~d  Armor: ~d"
+                        (MOB-NAME MOB) (MOB-DESCRIPTION MOB) (MOB-HEALTH MOB)
+                        (MOB-MAX-HEALTH MOB) (MOB-DAMAGE MOB) (MOB-ARMOR MOB))
+                :BRIGHT-RED))
+              (LET ((FACET
+                     (FIND-FACET-IN-ROOM (PLAYER-ROOM PLAYER) TARGET-NAME)))
+                (IF FACET
+                    (WRITE-CRLF (PLAYER-STREAM PLAYER)
+                     (WRAP (CDR FACET) :BRIGHT-MAGENTA))
+                    (LET ((ROOM-ITEM
+                           (FIND-ITEM-IN-ROOM (PLAYER-ROOM PLAYER)
+                            TARGET-NAME)))
+                      (IF ROOM-ITEM
+                          (PROGN
+                           (WRITE-CRLF (PLAYER-STREAM PLAYER)
+                            (WRAP
+                             (FORMAT NIL "~a: ~a" (ITEM-NAME ROOM-ITEM)
+                                     (MUD.INVENTORY:ITEM-DESCRIPTION
+                                      ROOM-ITEM))
+                             :BRIGHT-WHITE))
+                           (WHEN (EQ (ITEM-TYPE ROOM-ITEM) :CORPSE)
+                             (LET ((CORPSE-CONTENTS
+                                    (GETHASH (ITEM-NAME ROOM-ITEM)
+                                             MUD.COMBAT:*CORPSE-DATA*)))
+                               (IF CORPSE-CONTENTS
+                                   (LET ((COUNTS
+                                          (MAKE-HASH-TABLE :TEST #'EQUAL)))
+                                     (DOLIST (IT CORPSE-CONTENTS)
+                                       (INCF
+                                        (GETHASH (MUD.INVENTORY:ITEM-NAME IT)
+                                                 COUNTS 0)))
+                                     (LET ((CONTENTS-STR
+                                            (WITH-OUTPUT-TO-STRING (OUT)
+                                              (LET ((FIRST T))
+                                                (MAPHASH
+                                                 (LAMBDA (NAME COUNT)
+                                                   (UNLESS FIRST
+                                                     (FORMAT OUT ", "))
+                                                   (SETF FIRST NIL)
+                                                   (IF (> COUNT 1)
+                                                       (FORMAT OUT "~a (x~d)"
+                                                               NAME COUNT)
+                                                       (FORMAT OUT "~a" NAME)))
+                                                 COUNTS)))))
+                                       (WRITE-CRLF (PLAYER-STREAM PLAYER)
+                                        (WRAP
+                                         (FORMAT NIL "Contents: ~a"
+                                                 CONTENTS-STR)
+                                         :BRIGHT-YELLOW))))
+                                   (WRITE-CRLF (PLAYER-STREAM PLAYER)
+                                    (WRAP "The corpse is empty."
+                                     :BRIGHT-BLACK))))))
+                          (LET ((INV-ITEM
+                                 (FIND-IN-INVENTORY PLAYER TARGET-NAME)))
+                            (IF INV-ITEM
+                                (WRITE-CRLF (PLAYER-STREAM PLAYER)
+                                 (WRAP
+                                  (FORMAT NIL "~a (in your inventory): ~a"
+                                          (ITEM-NAME INV-ITEM)
+                                          (MUD.INVENTORY:ITEM-DESCRIPTION
+                                           INV-ITEM))
+                                  :BRIGHT-CYAN))
+                                (WRITE-CRLF (PLAYER-STREAM PLAYER)
+                                 (WRAP
+                                  (FORMAT NIL "You don't see '~a' here."
+                                          TARGET-NAME)
+                                  :BRIGHT-RED)))))))))))))))
+
+
+(DEFUN SEND-ROOM-OVERVIEW (PLAYER)
+  (LET* ((ROOM-ID (PLAYER-ROOM PLAYER)) (ROOM (FIND-ROOM ROOM-ID)))
+    (IF ROOM
+        (LET ((STREAM (PLAYER-STREAM PLAYER)))
+          (WRITE-CRLF STREAM
+           (WRAP (GENERATE-MAP (PLAYER-ROOM PLAYER)) :BRIGHT-CYAN))
+          (WRITE-CRLF STREAM
+           (WRAP (FORMAT NIL "~a" (ROOM-NAME ROOM)) :BOLD :BRIGHT-CYAN))
+          (WRITE-CRLF STREAM (COLORIZE-FACETS (ROOM-DESCRIPTION ROOM)))
+          (WRITE-CRLF STREAM "")
+          (WITH-MUTEX (*CLIENTS-LOCK*)
+           (LET ((OTHERS
+                  (REMOVE-IF
+                   (LAMBDA (P)
+                     (OR (EQ P PLAYER)
+                         (NOT (EQ (PLAYER-ROOM P) (PLAYER-ROOM PLAYER)))))
+                   *CLIENTS*)))
+             (WHEN OTHERS
+               (WRITE-CRLF STREAM
+                (WRAP
+                 (FORMAT NIL "Also here: ~{~a~^, ~}"
+                         (MAPCAR #'PLAYER-NAME OTHERS))
+                 :BRIGHT-GREEN)))))
+          (LET ((MOBS (GET-MOBS-IN-ROOM (PLAYER-ROOM PLAYER))))
+            (WHEN MOBS
+              (WRITE-CRLF STREAM
+               (WRAP (FORMAT NIL "Mobs: ~{~a~^, ~}" (MAPCAR #'MOB-NAME MOBS))
+                :BRIGHT-RED))))
+          (LET ((ITEMS-STR (LIST-ROOM-ITEMS (PLAYER-ROOM PLAYER))))
+            (WHEN ITEMS-STR
+              (WRITE-CRLF STREAM
+               (WRAP (FORMAT NIL "Items: ~a" ITEMS-STR) :BRIGHT-WHITE))))
+          (WRITE-CRLF STREAM "")
+          (LET* ((VEHICLE-TYPE
+                  (WHEN (PLAYER-VEHICLE PLAYER)
+                    (MUD.INVENTORY:ITEM-VEHICLE-TYPE (PLAYER-VEHICLE PLAYER))))
+                 (ALL-EXITS (ROOM-EXITS ROOM))
+                 (AVAILABLE-EXITS
+                  (REMOVE-IF-NOT
+                   (LAMBDA (EXIT-ENTRY)
+                     (LET ((DIRECTION (CAR EXIT-ENTRY))
+                           (REST-OF-ENTRY (CDR EXIT-ENTRY)))
+                       (IF (AND (CONSP REST-OF-ENTRY)
+                                (KEYWORDP (CAR REST-OF-ENTRY)))
+                           (AND VEHICLE-TYPE
+                                (EQ VEHICLE-TYPE (CAR REST-OF-ENTRY)))
+                           (OR (NULL VEHICLE-TYPE) (EQ VEHICLE-TYPE :UBER)))))
+                   ALL-EXITS))
+                 (EXIT-NAMES
+                  (MAPCAR
+                   (LAMBDA (PAIR) (STRING-UPCASE (SYMBOL-NAME (CAR PAIR))))
+                   AVAILABLE-EXITS)))
+            (IF EXIT-NAMES
+                (WRITE-CRLF STREAM
+                 (WRAP (FORMAT NIL "Exits: ~{~a~^, ~}" EXIT-NAMES)
+                  :BRIGHT-YELLOW))
+                (WRITE-CRLF STREAM (WRAP "Exits: none" :BRIGHT-YELLOW))))
+          (WHEN (PLAYER-VEHICLE PLAYER)
+            (WRITE-CRLF STREAM
+             (WRAP
+              (FORMAT NIL "You are in: ~a" (ITEM-NAME (PLAYER-VEHICLE PLAYER)))
+              :BRIGHT-CYAN))))
+        (WRITE-CRLF (PLAYER-STREAM PLAYER)
+         (WRAP (FORMAT NIL "ERROR: Room ~a not found!" ROOM-ID) :BRIGHT-RED)))))
+
+
+(DEFUN ANNOUNCE-TO-ROOM (PLAYER MESSAGE &KEY (INCLUDE-SELF NIL) (EXCLUDE NIL))
+  (LET ((ROOM-ID (PLAYER-ROOM PLAYER)))
+    (WITH-MUTEX (*CLIENTS-LOCK*)
+     (DOLIST (OTHER *CLIENTS*)
+       (WHEN
+           (AND (EQ (PLAYER-ROOM OTHER) ROOM-ID)
+                (OR INCLUDE-SELF (NOT (EQ OTHER PLAYER)))
+                (NOT (MEMBER OTHER EXCLUDE)))
+         (IGNORE-ERRORS (WRITE-CRLF (PLAYER-STREAM OTHER) MESSAGE)))))))
+
+
+(DEFUN MOVE-PLAYER (PLAYER DIRECTION)
+  (LET* ((ROOM (CURRENT-ROOM PLAYER))
+         (VEHICLE-TYPE
+          (WHEN (PLAYER-VEHICLE PLAYER)
+            (MUD.INVENTORY:ITEM-VEHICLE-TYPE (PLAYER-VEHICLE PLAYER))))
+         (TARGET-ID (AND ROOM (NEIGHBOR ROOM DIRECTION VEHICLE-TYPE)))
+         (TARGET (AND TARGET-ID (FIND-ROOM TARGET-ID))))
+    (IF (NULL TARGET)
+        (LET ((STREAM (PLAYER-STREAM PLAYER)))
+          (WRITE-CRLF STREAM (WRAP "You can't go that way." :BRIGHT-RED))
+          NIL)
+        (PROGN
+         (ANNOUNCE-TO-ROOM PLAYER
+          (FORMAT NIL "~a slips ~a." (WRAP (PLAYER-NAME PLAYER) :BRIGHT-BLUE)
+                  (STRING-DOWNCASE (SYMBOL-NAME DIRECTION))))
+         (SET-PLAYER-ROOM PLAYER (ROOM-ID TARGET))
+         (ANNOUNCE-TO-ROOM PLAYER
+          (FORMAT NIL "~a arrives." (WRAP (PLAYER-NAME PLAYER) :BRIGHT-GREEN))
+          :INCLUDE-SELF NIL)
+         (SEND-ROOM-OVERVIEW PLAYER)
+         T))))
+
+
+(DEFUN HANDLE-SAY (PLAYER TEXT)
+  (LET ((CLEAN (STRING-TRIM '(#\  #\Tab) TEXT)))
+    (IF (ZEROP (LENGTH CLEAN))
+        (WRITE-CRLF (PLAYER-STREAM PLAYER) (WRAP "Say what?" :BRIGHT-RED))
+        (ANNOUNCE-TO-ROOM PLAYER
+         (FORMAT NIL "~a says: ~a" (WRAP (PLAYER-NAME PLAYER) :BRIGHT-GREEN)
+                 CLEAN)
+         :INCLUDE-SELF T))))
+
+
+(DEFUN FIND-PLAYER-BY-NAME (NAME)
+  "Find a connected player by name (case-insensitive)"
+  (WITH-MUTEX (*CLIENTS-LOCK*)
+   (FIND-IF (LAMBDA (P) (STRING-EQUAL (PLAYER-NAME P) NAME)) *CLIENTS*)))
+
+
+(DEFUN HANDLE-CAST (CASTER SPELL-AND-TARGET)
+  "Handle casting a spell: cast <spell> <target>"
+  (LET* ((PARTS (SPLIT-ON-WHITESPACE SPELL-AND-TARGET))
+         (SPELL-NAME (FIRST PARTS))
+         (TARGET-NAME (SECOND PARTS)))
+    (COND
+     ((NULL SPELL-NAME)
+      (WRITE-CRLF (PLAYER-STREAM CASTER)
+       (WRAP "Cast what? Usage: cast <spell> <target>" :BRIGHT-RED)))
+     ((NULL TARGET-NAME)
+      (WRITE-CRLF (PLAYER-STREAM CASTER)
+       (WRAP "Cast at whom? Usage: cast <spell> <target>" :BRIGHT-RED)))
+     (T
+      (LET ((TARGET (FIND-PLAYER-BY-NAME TARGET-NAME)))
+        (COND
+         ((NULL TARGET)
+          (WRITE-CRLF (PLAYER-STREAM CASTER)
+           (WRAP (FORMAT NIL "No player named '~a' is here." TARGET-NAME)
+            :BRIGHT-RED)))
+         ((NOT (EQ (PLAYER-ROOM CASTER) (PLAYER-ROOM TARGET)))
+          (WRITE-CRLF (PLAYER-STREAM CASTER)
+           (WRAP (FORMAT NIL "~a is not in this room." (PLAYER-NAME TARGET))
+            :BRIGHT-RED)))
+         (T
+          (MULTIPLE-VALUE-BIND (SUCCESS MESSAGE DEATH-OCCURRED)
+              (CAST-SPELL CASTER TARGET SPELL-NAME)
+            (IF SUCCESS
+                (PROGN
+                 (WRITE-CRLF (PLAYER-STREAM CASTER)
+                  (WRAP MESSAGE :BRIGHT-MAGENTA))
+                 (UNLESS (EQ CASTER TARGET)
+                   (WRITE-CRLF (PLAYER-STREAM TARGET)
+                    (WRAP
+                     (FORMAT NIL "~a casts ~a at you!" (PLAYER-NAME CASTER)
+                             SPELL-NAME)
+                     :BRIGHT-RED))
+                   (ANNOUNCE-TO-ROOM CASTER
+                    (FORMAT NIL "~a casts ~a at ~a!"
+                            (WRAP (PLAYER-NAME CASTER) :BRIGHT-YELLOW)
+                            SPELL-NAME
+                            (WRAP (PLAYER-NAME TARGET) :BRIGHT-YELLOW))
+                    :EXCLUDE (LIST CASTER TARGET)))
+                 (WHEN DEATH-OCCURRED
+                   (WRITE-CRLF (PLAYER-STREAM TARGET)
+                    (WRAP
+                     "You have died! Your items have been left in a corpse."
+                     :BRIGHT-RED))
+                   (WRITE-CRLF (PLAYER-STREAM TARGET)
+                    (WRAP "You awaken in the graveyard, wounded but alive..."
+                     :BRIGHT-BLACK))
+                   (SEND-ROOM-OVERVIEW TARGET)
+                   (ANNOUNCE-TO-ROOM TARGET
+                    (FORMAT NIL "~a appears, looking worse for wear."
+                            (WRAP (PLAYER-NAME TARGET) :BRIGHT-GREEN))
+                    :INCLUDE-SELF NIL)))
+                (WRITE-CRLF (PLAYER-STREAM CASTER)
+                 (WRAP MESSAGE :BRIGHT-RED)))))))))))
+
+
+(DEFUN SPLIT-ON-WHITESPACE (TEXT)
+  "Split text on whitespace into a list of words"
+  (LET ((TRIMMED (STRING-TRIM '(#\  #\Tab) TEXT)))
+    (IF (ZEROP (LENGTH TRIMMED))
+        NIL
+        (LOOP WITH START = 0
+              WITH LEN = (LENGTH TRIMMED)
+              WHILE (< START LEN)
+              FOR
+              END = (OR
+                     (POSITION-IF
+                      (LAMBDA (C) (OR (CHAR= C #\ ) (CHAR= C #\Tab))) TRIMMED
+                      :START START)
+                     LEN)
+              COLLECT (SUBSEQ TRIMMED START END)
+              DO (SETF START
+                         (POSITION-IF-NOT
+                          (LAMBDA (C) (OR (CHAR= C #\ ) (CHAR= C #\Tab)))
+                          TRIMMED :START END))
+              WHILE START))))
+
+
+(DEFUN PARSE-COMMAND (LINE)
+  (LET* ((TRIMMED (STRING-TRIM *WHITESPACE-CHARS* LINE)))
+    (IF (ZEROP (LENGTH TRIMMED))
+        (VALUES NIL "")
+        (LET ((SPLIT (POSITION-IF #'WHITESPACE-CHAR-P TRIMMED)))
+          (IF SPLIT
+              (VALUES (STRING-DOWNCASE (SUBSEQ TRIMMED 0 SPLIT))
+                      (STRING-LEFT-TRIM *WHITESPACE-CHARS*
+                                        (SUBSEQ TRIMMED SPLIT)))
+              (VALUES (STRING-DOWNCASE TRIMMED) ""))))))
+
+
+(DEFUN NORMALIZE-DIRECTION (DIR-STRING)
+  "Convert direction string to keyword, handling single-letter aliases"
+  (LET ((DIR (STRING-DOWNCASE DIR-STRING)))
+    (COND ((STRING= DIR "n") :NORTH) ((STRING= DIR "s") :SOUTH)
+          ((STRING= DIR "e") :EAST) ((STRING= DIR "w") :WEST)
+          ((STRING= DIR "u") :UP) ((STRING= DIR "d") :DOWN)
+          ((STRING= DIR "ne") :NORTHEAST) ((STRING= DIR "nw") :NORTHWEST)
+          ((STRING= DIR "se") :SOUTHEAST) ((STRING= DIR "sw") :SOUTHWEST)
+          (T (INTERN (STRING-UPCASE DIR) :KEYWORD)))))
+
+
+(DEFUN HANDLE-COMMAND (PLAYER LINE)
+  (MULTIPLE-VALUE-BIND (VERB REST)
+      (PARSE-COMMAND LINE)
+    (COND ((NULL VERB) (SEND-ROOM-OVERVIEW PLAYER))
+          ((MEMBER VERB '("look" "l") :TEST #'STRING=)
+           (IF (ZEROP (LENGTH REST))
+               (SEND-ROOM-OVERVIEW PLAYER)
+               (HANDLE-LOOK-AT PLAYER REST)))
+          ((MEMBER VERB '("move" "go") :TEST #'STRING=)
+           (IF (ZEROP (LENGTH REST))
+               (WRITE-CRLF (PLAYER-STREAM PLAYER)
+                (WRAP "Go where?" :BRIGHT-RED))
+               (LET* ((DIR-TOKEN
+                       (SUBSEQ REST 0
+                               (OR (POSITION-IF #'WHITESPACE-CHAR-P REST)
+                                   (LENGTH REST))))
+                      (KEYWORD (NORMALIZE-DIRECTION DIR-TOKEN)))
+                 (MOVE-PLAYER PLAYER KEYWORD))))
+          ((MEMBER VERB
+                   '("n" "s" "e" "w" "u" "d" "ne" "nw" "se" "sw" "downstream"
+                     "upstream")
+                   :TEST #'STRING=)
+           (MOVE-PLAYER PLAYER (NORMALIZE-DIRECTION VERB)))
+          ((STRING= VERB "say") (HANDLE-SAY PLAYER REST))
+          ((STRING= VERB "who")
+           (WITH-MUTEX (*CLIENTS-LOCK*)
+            (LET ((NAMES (MAPCAR #'PLAYER-NAME *CLIENTS*)))
+              (WRITE-CRLF (PLAYER-STREAM PLAYER)
+               (WRAP
+                (IF NAMES
+                    (FORMAT NIL "Wanderers about: ~{~a~^, ~}" NAMES)
+                    "You are alone in the twilight.")
+                :BRIGHT-MAGENTA)))))
+          ((STRING= VERB "stats")
+           (WRITE-CRLF (PLAYER-STREAM PLAYER)
+            (WRAP (GET-PLAYER-STATS PLAYER) :BRIGHT-CYAN)))
+          ((STRING= VERB "spells")
+           (WRITE-CRLF (PLAYER-STREAM PLAYER)
+            (WRAP "Available spells:" :BRIGHT-YELLOW))
+           (DOLIST (SPELL *SPELLS*)
+             (WRITE-CRLF (PLAYER-STREAM PLAYER)
+              (FORMAT NIL "  ~a (~d mana, ~a dmg) - ~a"
+                      (WRAP (SPELL-NAME SPELL) :BRIGHT-MAGENTA)
+                      (SPELL-COST SPELL)
+                      (IF (MINUSP (SPELL-DAMAGE SPELL))
+                          (FORMAT NIL "heals ~d" (ABS (SPELL-DAMAGE SPELL)))
+                          (SPELL-DAMAGE SPELL))
+                      (SPELL-DESCRIPTION SPELL)))))
+          ((STRING= VERB "cast") (HANDLE-CAST PLAYER REST))
+          ((STRING= VERB "attack")
+           (IF (ZEROP (LENGTH REST))
+               (WRITE-CRLF (PLAYER-STREAM PLAYER)
+                (WRAP "Attack what? Usage: attack <target>" :BRIGHT-RED))
+               (LET* ((TARGET-NAME (STRING-TRIM '(#\  #\Tab) REST))
+                      (MOB (FIND-MOB-IN-ROOM (PLAYER-ROOM PLAYER) TARGET-NAME)))
+                 (IF MOB
+                     (LET* ((PLAYER-DAMAGE (GET-PLAYER-DAMAGE PLAYER))
+                            (MOB-ARMOR (MOB-ARMOR MOB))
+                            (ACTUAL-DAMAGE (MAX 1 (- PLAYER-DAMAGE MOB-ARMOR))))
+                       (WRITE-CRLF (PLAYER-STREAM PLAYER)
+                        (WRAP
+                         (FORMAT NIL "You attack ~a for ~d damage!"
+                                 (MOB-NAME MOB) ACTUAL-DAMAGE)
+                         :BRIGHT-RED))
+                       (ANNOUNCE-TO-ROOM PLAYER
+                        (FORMAT NIL "~a attacks ~a!"
+                                (WRAP (PLAYER-NAME PLAYER) :BRIGHT-YELLOW)
+                                (MOB-NAME MOB))
+                        :INCLUDE-SELF NIL)
+                       (LET ((MOB-DIED (DAMAGE-MOB MOB ACTUAL-DAMAGE)))
+                         (IF MOB-DIED
+                             (PROGN
+                              (WRITE-CRLF (PLAYER-STREAM PLAYER)
+                               (WRAP
+                                (FORMAT NIL "You have slain ~a!"
+                                        (MOB-NAME MOB))
+                                :BRIGHT-GREEN))
+                              (ANNOUNCE-TO-ROOM PLAYER
+                               (FORMAT NIL "~a has slain ~a!"
+                                       (WRAP (PLAYER-NAME PLAYER)
+                                        :BRIGHT-GREEN)
+                                       (MOB-NAME MOB))
+                               :INCLUDE-SELF NIL)
+                              (LET ((XP (MOB-XP-REWARD MOB)))
+                                (LET ((LEVELED-UP (AWARD-XP PLAYER XP)))
+                                  (WRITE-CRLF (PLAYER-STREAM PLAYER)
+                                   (WRAP (FORMAT NIL "You gained ~d XP!" XP)
+                                    :BRIGHT-CYAN))
+                                  (WHEN LEVELED-UP
+                                    (WRITE-CRLF (PLAYER-STREAM PLAYER)
+                                     (WRAP
+                                      (FORMAT NIL
+                                              "*** LEVEL UP! You are now level ~d! ***"
+                                              (PLAYER-LEVEL PLAYER))
+                                      :BRIGHT-MAGENTA))
+                                    (WRITE-CRLF (PLAYER-STREAM PLAYER)
+                                     (WRAP
+                                      (FORMAT NIL
+                                              "Health: +10 (now ~d)  Mana: +5 (now ~d)"
+                                              (PLAYER-MAX-HEALTH PLAYER)
+                                              (PLAYER-MAX-MANA PLAYER))
+                                      :BRIGHT-GREEN)))))
+                              (LET ((LOOT (GET-MOB-LOOT MOB)))
+                                (WHEN LOOT
+                                  (DOLIST (ITEM LOOT)
+                                    (ADD-ITEM-TO-ROOM (PLAYER-ROOM PLAYER)
+                                     ITEM))
+                                  (WRITE-CRLF (PLAYER-STREAM PLAYER)
+                                   (WRAP
+                                    (FORMAT NIL "~a dropped: ~{~a~^, ~}"
+                                            (MOB-NAME MOB)
+                                            (MAPCAR #'ITEM-NAME LOOT))
+                                    :BRIGHT-YELLOW))))
+                              (REMOVE-MOB-FROM-ROOM (PLAYER-ROOM PLAYER) MOB))
+                             (PROGN
+                              (WRITE-CRLF (PLAYER-STREAM PLAYER)
+                               (FORMAT NIL "~a has ~d/~d health remaining."
+                                       (MOB-NAME MOB) (MOB-HEALTH MOB)
+                                       (MOB-MAX-HEALTH MOB)))
+                              (LET* ((MOB-DMG (MOB-DAMAGE MOB))
+                                     (PLAYER-ARMOR (GET-PLAYER-ARMOR PLAYER))
+                                     (COUNTER-DAMAGE
+                                      (MAX 1 (- MOB-DMG PLAYER-ARMOR))))
+                                (MODIFY-HEALTH PLAYER (- COUNTER-DAMAGE))
+                                (WRITE-CRLF (PLAYER-STREAM PLAYER)
+                                 (WRAP
+                                  (FORMAT NIL "~a attacks you for ~d damage!"
+                                          (MOB-NAME MOB) COUNTER-DAMAGE)
+                                  :BRIGHT-RED))
+                                (ANNOUNCE-TO-ROOM PLAYER
+                                 (FORMAT NIL "~a is attacked by ~a!"
+                                         (WRAP (PLAYER-NAME PLAYER)
+                                          :BRIGHT-RED)
+                                         (MOB-NAME MOB))
+                                 :INCLUDE-SELF NIL)
+                                (UNLESS (PLAYER-ALIVE-P PLAYER)
+                                  (WRITE-CRLF (PLAYER-STREAM PLAYER)
+                                   (WRAP "You have been slain!" :BRIGHT-RED))
+                                  (ANNOUNCE-TO-ROOM PLAYER
+                                   (FORMAT NIL "~a has been slain by ~a!"
+                                           (WRAP (PLAYER-NAME PLAYER)
+                                            :BRIGHT-RED)
+                                           (MOB-NAME MOB))
+                                   :INCLUDE-SELF NIL)
+                                  (HANDLE-PLAYER-DEATH PLAYER)
+                                  (WRITE-CRLF (PLAYER-STREAM PLAYER)
+                                   (WRAP
+                                    "You awaken in the graveyard, wounded but alive..."
+                                    :BRIGHT-BLACK))
+                                  (SEND-ROOM-OVERVIEW PLAYER)))))))
+                     (WRITE-CRLF (PLAYER-STREAM PLAYER)
+                      (WRAP
+                       (FORMAT NIL "There is no ~a here to attack."
+                               TARGET-NAME)
+                       :BRIGHT-RED))))))
+          ((STRING= VERB "equip")
+           (IF (ZEROP (LENGTH REST))
+               (WRITE-CRLF (PLAYER-STREAM PLAYER)
+                (WRAP "Equip what? Usage: equip <item>" :BRIGHT-RED))
+               (LET* ((ITEM-NAME (STRING-TRIM '(#\  #\Tab) REST))
+                      (ITEM (FIND-IN-INVENTORY PLAYER ITEM-NAME)))
+                 (IF ITEM
+                     (PROGN
+                      (REMOVE-FROM-INVENTORY PLAYER ITEM)
+                      (MULTIPLE-VALUE-BIND (SUCCESS MESSAGE)
+                          (EQUIP-ITEM PLAYER ITEM)
+                        (WRITE-CRLF (PLAYER-STREAM PLAYER)
+                         (WRAP MESSAGE
+                          (IF SUCCESS
+                              :BRIGHT-GREEN
+                              :BRIGHT-RED)))
+                        (WHEN SUCCESS
+                          (ANNOUNCE-TO-ROOM PLAYER
+                           (FORMAT NIL "~a equips ~a."
+                                   (WRAP (PLAYER-NAME PLAYER) :BRIGHT-YELLOW)
+                                   ITEM-NAME)
+                           :INCLUDE-SELF NIL))))
+                     (WRITE-CRLF (PLAYER-STREAM PLAYER)
+                      (WRAP (FORMAT NIL "You don't have any ~a." ITEM-NAME)
+                       :BRIGHT-RED))))))
+          ((STRING= VERB "unequip")
+           (IF (ZEROP (LENGTH REST))
+               (WRITE-CRLF (PLAYER-STREAM PLAYER)
+                (WRAP "Unequip what? Usage: unequip weapon/armor" :BRIGHT-RED))
+               (LET* ((SLOT-NAME (STRING-TRIM '(#\  #\Tab) REST))
+                      (SLOT
+                       (COND
+                        ((OR (STRING-EQUAL SLOT-NAME "weapon")
+                             (STRING-EQUAL SLOT-NAME "w"))
+                         :WEAPON)
+                        ((OR (STRING-EQUAL SLOT-NAME "armor")
+                             (STRING-EQUAL SLOT-NAME "a"))
+                         :ARMOR)
+                        (T NIL))))
+                 (IF SLOT
+                     (MULTIPLE-VALUE-BIND (SUCCESS MESSAGE)
+                         (UNEQUIP-ITEM PLAYER SLOT)
+                       (WRITE-CRLF (PLAYER-STREAM PLAYER)
+                        (WRAP MESSAGE
+                         (IF SUCCESS
+                             :BRIGHT-GREEN
+                             :BRIGHT-RED)))
+                       (WHEN SUCCESS
+                         (ANNOUNCE-TO-ROOM PLAYER
+                          (FORMAT NIL "~a unequips ~a."
+                                  (WRAP (PLAYER-NAME PLAYER) :BRIGHT-YELLOW)
+                                  SLOT-NAME)
+                          :INCLUDE-SELF NIL)))
+                     (WRITE-CRLF (PLAYER-STREAM PLAYER)
+                      (WRAP
+                       "Unequip weapon or armor? Usage: unequip weapon/armor"
+                       :BRIGHT-RED))))))
+          ((MEMBER VERB '("inventory" "inv" "i") :TEST #'STRING=)
+           (WRITE-CRLF (PLAYER-STREAM PLAYER) (LIST-INVENTORY PLAYER)))
+          ((STRING= VERB "use")
+           (IF (ZEROP (LENGTH REST))
+               (WRITE-CRLF (PLAYER-STREAM PLAYER)
+                (WRAP "Use what? Usage: use <item>" :BRIGHT-RED))
+               (LET ((ITEM-NAME (STRING-TRIM '(#\  #\Tab) REST)))
+                 (MULTIPLE-VALUE-BIND (SUCCESS MESSAGE)
+                     (USE-ITEM PLAYER ITEM-NAME)
+                   (IF SUCCESS
+                       (WRITE-CRLF (PLAYER-STREAM PLAYER)
+                        (WRAP MESSAGE :BRIGHT-GREEN))
+                       (WRITE-CRLF (PLAYER-STREAM PLAYER)
+                        (WRAP MESSAGE :BRIGHT-RED)))))))
+          ((STRING= VERB "drop")
+           (IF (ZEROP (LENGTH REST))
+               (WRITE-CRLF (PLAYER-STREAM PLAYER)
+                (WRAP "Drop what? Usage: drop <item>" :BRIGHT-RED))
+               (LET ((ITEM-NAME (STRING-TRIM '(#\  #\Tab) REST)))
+                 (MULTIPLE-VALUE-BIND (SUCCESS MESSAGE)
+                     (DROP-ITEM PLAYER ITEM-NAME)
+                   (IF SUCCESS
+                       (PROGN
+                        (WRITE-CRLF (PLAYER-STREAM PLAYER)
+                         (WRAP MESSAGE :BRIGHT-GREEN))
+                        (ANNOUNCE-TO-ROOM PLAYER
+                         (FORMAT NIL "~a drops ~a."
+                                 (WRAP (PLAYER-NAME PLAYER) :BRIGHT-YELLOW)
+                                 ITEM-NAME)
+                         :INCLUDE-SELF NIL))
+                       (WRITE-CRLF (PLAYER-STREAM PLAYER)
+                        (WRAP MESSAGE :BRIGHT-RED)))))))
+          ((MEMBER VERB '("get" "grab") :TEST #'STRING=)
+           (IF (ZEROP (LENGTH REST))
+               (WRITE-CRLF (PLAYER-STREAM PLAYER)
+                (WRAP "Get what? Usage: get <item>" :BRIGHT-RED))
+               (LET ((ITEM-NAME (STRING-TRIM '(#\  #\Tab) REST)))
+                 (LET ((ITEM
+                        (FIND-ITEM-IN-ROOM (PLAYER-ROOM PLAYER) ITEM-NAME)))
+                   (IF (AND ITEM (EQ (ITEM-TYPE ITEM) :CORPSE))
+                       (LET ((CORPSE-ITEMS (LOOT-CORPSE ITEM)))
+                         (IF CORPSE-ITEMS
+                             (PROGN
+                              (DOLIST (CORPSE-ITEM CORPSE-ITEMS)
+                                (ADD-TO-INVENTORY PLAYER CORPSE-ITEM))
+                              (REMOVE-ITEM-FROM-ROOM (PLAYER-ROOM PLAYER) ITEM)
+                              (WRITE-CRLF (PLAYER-STREAM PLAYER)
+                               (WRAP
+                                (FORMAT NIL
+                                        "You loot the corpse and take ~d item~:p."
+                                        (LENGTH CORPSE-ITEMS))
+                                :BRIGHT-GREEN))
+                              (ANNOUNCE-TO-ROOM PLAYER
+                               (FORMAT NIL "~a loots ~a."
+                                       (WRAP (PLAYER-NAME PLAYER)
+                                        :BRIGHT-YELLOW)
+                                       ITEM-NAME)
+                               :INCLUDE-SELF NIL))
+                             (WRITE-CRLF (PLAYER-STREAM PLAYER)
+                              (WRAP "The corpse is empty." :BRIGHT-RED))))
+                       (MULTIPLE-VALUE-BIND (SUCCESS MESSAGE)
+                           (GRAB-ITEM PLAYER ITEM-NAME)
+                         (IF SUCCESS
+                             (PROGN
+                              (WRITE-CRLF (PLAYER-STREAM PLAYER)
+                               (WRAP MESSAGE :BRIGHT-GREEN))
+                              (ANNOUNCE-TO-ROOM PLAYER
+                               (FORMAT NIL "~a gets ~a."
+                                       (WRAP (PLAYER-NAME PLAYER)
+                                        :BRIGHT-YELLOW)
+                                       ITEM-NAME)
+                               :INCLUDE-SELF NIL)
+                              (MULTIPLE-VALUE-BIND (COMPLETED LEVELED-UP QUEST)
+                                  (CHECK-QUEST-COMPLETION PLAYER
+                                   :APPLE-PICKING)
+                                (WHEN COMPLETED
+                                  (WRITE-CRLF (PLAYER-STREAM PLAYER)
+                                   (WRAP
+                                    (FORMAT NIL "Quest Complete: ~a"
+                                            (QUEST-NAME QUEST))
+                                    :BRIGHT-YELLOW))
+                                  (WRITE-CRLF (PLAYER-STREAM PLAYER)
+                                   (WRAP (QUEST-REWARD-TEXT QUEST)
+                                    :BRIGHT-GREEN))
+                                  (WRITE-CRLF (PLAYER-STREAM PLAYER)
+                                   (WRAP
+                                    (FORMAT NIL "You gained ~d XP!"
+                                            (QUEST-REWARD-XP QUEST))
+                                    :BRIGHT-CYAN))
+                                  (WHEN LEVELED-UP
+                                    (WRITE-CRLF (PLAYER-STREAM PLAYER)
+                                     (WRAP
+                                      (FORMAT NIL
+                                              "*** LEVEL UP! You are now level ~d! ***"
+                                              (PLAYER-LEVEL PLAYER))
+                                      :BRIGHT-MAGENTA))
+                                    (WRITE-CRLF (PLAYER-STREAM PLAYER)
+                                     (WRAP
+                                      (FORMAT NIL
+                                              "Health: +10 (now ~d)  Mana: +5 (now ~d)"
+                                              (PLAYER-MAX-HEALTH PLAYER)
+                                              (PLAYER-MAX-MANA PLAYER))
+                                      :BRIGHT-GREEN))))))
+                             (WRITE-CRLF (PLAYER-STREAM PLAYER)
+                              (WRAP MESSAGE :BRIGHT-RED)))))))))
+          ((STRING= VERB ".")
+           (WRITE-CRLF (PLAYER-STREAM PLAYER)
+            (WRAP "No previous command to repeat." :BRIGHT-RED)))
+          ((STRING= VERB "suicide")
+           (WRITE-CRLF (PLAYER-STREAM PLAYER)
+            (WRAP "You take your own life..." :BRIGHT-RED))
+           (ANNOUNCE-TO-ROOM PLAYER
+            (FORMAT NIL "~a falls to the ground, lifeless."
+                    (WRAP (PLAYER-NAME PLAYER) :BRIGHT-RED))
+            :INCLUDE-SELF NIL)
+           (HANDLE-PLAYER-DEATH PLAYER)
+           (WRITE-CRLF (PLAYER-STREAM PLAYER)
+            (WRAP "You have died! Your items have been left in a corpse."
+             :BRIGHT-RED))
+           (WRITE-CRLF (PLAYER-STREAM PLAYER)
+            (WRAP "You awaken in the graveyard, wounded but alive..."
+             :BRIGHT-BLACK))
+           (SEND-ROOM-OVERVIEW PLAYER)
+           (ANNOUNCE-TO-ROOM PLAYER
+            (FORMAT NIL "~a appears, looking worse for wear."
+                    (WRAP (PLAYER-NAME PLAYER) :BRIGHT-GREEN))
+            :INCLUDE-SELF NIL))
+          ((STRING= VERB "enter")
+           (IF (ZEROP (LENGTH REST))
+               (WRITE-CRLF (PLAYER-STREAM PLAYER)
+                (WRAP "Enter what?" :BRIGHT-RED))
+               (LET* ((TARGET-NAME (STRING-TRIM '(#\  #\Tab) REST))
+                      (VEHICLE-ITEM
+                       (FIND-ITEM-IN-ROOM (PLAYER-ROOM PLAYER) TARGET-NAME)))
+                 (COND
+                  ((PLAYER-VEHICLE PLAYER)
+                   (WRITE-CRLF (PLAYER-STREAM PLAYER)
+                    (WRAP
+                     (FORMAT NIL "You are already in ~a."
+                             (ITEM-NAME (PLAYER-VEHICLE PLAYER)))
+                     :BRIGHT-RED)))
+                  ((OR (NULL VEHICLE-ITEM)
+                       (NOT (EQ (ITEM-TYPE VEHICLE-ITEM) :VEHICLE)))
+                   (WRITE-CRLF (PLAYER-STREAM PLAYER)
+                    (WRAP (FORMAT NIL "You can't enter '~a'." TARGET-NAME)
+                     :BRIGHT-RED)))
+                  (T (REMOVE-ITEM-FROM-ROOM (PLAYER-ROOM PLAYER) VEHICLE-ITEM)
+                   (SETF (PLAYER-VEHICLE PLAYER) VEHICLE-ITEM)
+                   (WRITE-CRLF (PLAYER-STREAM PLAYER)
+                    (WRAP (FORMAT NIL "You enter ~a." (ITEM-NAME VEHICLE-ITEM))
+                     :BRIGHT-CYAN))
+                   (ANNOUNCE-TO-ROOM PLAYER
+                    (FORMAT NIL "~a enters ~a."
+                            (WRAP (PLAYER-NAME PLAYER) :BRIGHT-BLUE)
+                            (ITEM-NAME VEHICLE-ITEM))
+                    :INCLUDE-SELF NIL)
+                   (SEND-ROOM-OVERVIEW PLAYER))))))
+          ((STRING= VERB "exit")
+           (COND
+            ((NULL (PLAYER-VEHICLE PLAYER))
+             (WRITE-CRLF (PLAYER-STREAM PLAYER)
+              (WRAP "You are not in a vehicle." :BRIGHT-RED)))
+            (T
+             (LET ((VEHICLE-ITEM (PLAYER-VEHICLE PLAYER)))
+               (ADD-ITEM-TO-ROOM (PLAYER-ROOM PLAYER) VEHICLE-ITEM)
+               (SETF (PLAYER-VEHICLE PLAYER) NIL)
+               (WRITE-CRLF (PLAYER-STREAM PLAYER)
+                (WRAP (FORMAT NIL "You exit ~a." (ITEM-NAME VEHICLE-ITEM))
+                 :BRIGHT-CYAN))
+               (ANNOUNCE-TO-ROOM PLAYER
+                (FORMAT NIL "~a exits ~a."
+                        (WRAP (PLAYER-NAME PLAYER) :BRIGHT-BLUE)
+                        (ITEM-NAME VEHICLE-ITEM))
+                :INCLUDE-SELF NIL)
+               (SEND-ROOM-OVERVIEW PLAYER)))))
+          ((STRING= VERB "uber")
+           (COND
+            ((NULL (PLAYER-VEHICLE PLAYER))
+             (WRITE-CRLF (PLAYER-STREAM PLAYER)
+              (WRAP "You need to be in a vehicle to use uber." :BRIGHT-RED)))
+            ((NOT
+              (EQ (MUD.INVENTORY:ITEM-VEHICLE-TYPE (PLAYER-VEHICLE PLAYER))
+                  :UBER))
+             (WRITE-CRLF (PLAYER-STREAM PLAYER)
+              (WRAP "This vehicle doesn't support uber travel." :BRIGHT-RED)))
+            ((ZEROP (LENGTH REST))
+             (WRITE-CRLF (PLAYER-STREAM PLAYER)
+              (WRAP "Uber to where? Usage: uber <location name>" :BRIGHT-RED)))
+            (T
+             (LET* ((DESTINATION-NAME (STRING-TRIM '(#\  #\Tab) REST))
+                    (DESTINATION-ROOM (FIND-ROOM-BY-NAME DESTINATION-NAME)))
+               (IF DESTINATION-ROOM
+                   (PROGN
+                    (WRITE-CRLF (PLAYER-STREAM PLAYER)
+                     (WRAP
+                      (FORMAT NIL
+                              "The ~a shimmers with energy and instantly transports you to ~a!"
+                              (ITEM-NAME (PLAYER-VEHICLE PLAYER))
+                              (MUD.WORLD:ROOM-NAME DESTINATION-ROOM))
+                      :BRIGHT-MAGENTA))
+                    (ANNOUNCE-TO-ROOM PLAYER
+                     (FORMAT NIL "~a vanishes in a flash of light!"
+                             (WRAP (PLAYER-NAME PLAYER) :BRIGHT-BLUE))
+                     :INCLUDE-SELF NIL)
+                    (SET-PLAYER-ROOM PLAYER
+                     (MUD.WORLD:ROOM-ID DESTINATION-ROOM))
+                    (SEND-ROOM-OVERVIEW PLAYER)
+                    (ANNOUNCE-TO-ROOM PLAYER
+                     (FORMAT NIL
+                             "~a appears in a flash of light, riding in ~a!"
+                             (WRAP (PLAYER-NAME PLAYER) :BRIGHT-GREEN)
+                             (ITEM-NAME (PLAYER-VEHICLE PLAYER)))
+                     :INCLUDE-SELF NIL))
+                   (WRITE-CRLF (PLAYER-STREAM PLAYER)
+                    (WRAP
+                     (FORMAT NIL "Location '~a' not found." DESTINATION-NAME)
+                     :BRIGHT-RED)))))))
+          ((STRING= VERB "status")
+           (WRITE-CRLF (PLAYER-STREAM PLAYER)
+            (WRAP
+             (FORMAT NIL "~a - Level ~d" (PLAYER-NAME PLAYER)
+                     (PLAYER-LEVEL PLAYER))
+             :BRIGHT-CYAN))
+           (WRITE-CRLF (PLAYER-STREAM PLAYER)
+            (FORMAT NIL "Health: ~d/~d  Mana: ~d/~d" (PLAYER-HEALTH PLAYER)
+                    (PLAYER-MAX-HEALTH PLAYER) (PLAYER-MANA PLAYER)
+                    (PLAYER-MAX-MANA PLAYER)))
+           (WRITE-CRLF (PLAYER-STREAM PLAYER)
+            (FORMAT NIL "XP: ~d/~d  (Need ~d more to level)" (PLAYER-XP PLAYER)
+                    (MUD.PLAYER:XP-FOR-LEVEL (+ (PLAYER-LEVEL PLAYER) 1))
+                    (XP-TO-NEXT-LEVEL PLAYER)))
+           (WRITE-CRLF (PLAYER-STREAM PLAYER)
+            (FORMAT NIL "Damage: ~d  Armor: ~d" (GET-PLAYER-DAMAGE PLAYER)
+                    (GET-PLAYER-ARMOR PLAYER)))
+           (WHEN (PLAYER-EQUIPPED-WEAPON PLAYER)
+             (WRITE-CRLF (PLAYER-STREAM PLAYER)
+              (FORMAT NIL "Weapon: ~a (~+d damage)"
+                      (ITEM-NAME (PLAYER-EQUIPPED-WEAPON PLAYER))
+                      (ITEM-DAMAGE (PLAYER-EQUIPPED-WEAPON PLAYER)))))
+           (WHEN (PLAYER-EQUIPPED-ARMOR PLAYER)
+             (WRITE-CRLF (PLAYER-STREAM PLAYER)
+              (FORMAT NIL "Armor: ~a (~+d armor)"
+                      (ITEM-NAME (PLAYER-EQUIPPED-ARMOR PLAYER))
+                      (ITEM-ARMOR (PLAYER-EQUIPPED-ARMOR PLAYER))))))
+          ((STRING= VERB "quest")
+           (IF (ZEROP (LENGTH REST))
+               (LET ((ACTIVE-QUESTS (GET-ACTIVE-QUESTS PLAYER)))
+                 (IF ACTIVE-QUESTS
+                     (PROGN
+                      (WRITE-CRLF (PLAYER-STREAM PLAYER)
+                       (WRAP "Active Quests:" :BRIGHT-YELLOW))
+                      (DOLIST (QUEST ACTIVE-QUESTS)
+                        (WRITE-CRLF (PLAYER-STREAM PLAYER)
+                         (FORMAT NIL "  ~a: ~a"
+                                 (WRAP (QUEST-NAME QUEST) :BRIGHT-CYAN)
+                                 (QUEST-DESCRIPTION QUEST)))))
+                     (WRITE-CRLF (PLAYER-STREAM PLAYER)
+                      (WRAP
+                       "You have no active quests. Try 'quest start apple' to begin your first quest!"
+                       :BRIGHT-YELLOW))))
+               (LET ((SUBCOMMAND (STRING-TRIM '(#\  #\Tab) REST)))
+                 (COND
+                  ((STRING= SUBCOMMAND "start apple")
+                   (LET ((RESULT (START-QUEST PLAYER :APPLE-PICKING)))
+                     (WRITE-CRLF (PLAYER-STREAM PLAYER)
+                      (WRAP RESULT :BRIGHT-GREEN))))
+                  (T
+                   (WRITE-CRLF (PLAYER-STREAM PLAYER)
+                    (WRAP "Usage: quest [start apple]" :BRIGHT-RED)))))))
+          ((STRING= VERB "help")
+           (WRITE-CRLF (PLAYER-STREAM PLAYER)
+            (WRAP "Commands:" :BRIGHT-YELLOW))
+           (WRITE-CRLF (PLAYER-STREAM PLAYER)
+            "  Movement: look (l), go <dir> (n/s/e/w/u/d/ne/nw/se/sw), enter <vehicle>, exit, uber <location>")
+           (WRITE-CRLF (PLAYER-STREAM PLAYER) "  Social: say <text>, who")
+           (WRITE-CRLF (PLAYER-STREAM PLAYER)
+            "  Combat: attack <mob>, cast <spell> <target>, stats, spells")
+           (WRITE-CRLF (PLAYER-STREAM PLAYER)
+            "  Equipment: equip <item>, unequip weapon/armor")
+           (WRITE-CRLF (PLAYER-STREAM PLAYER)
+            "  Inventory: inventory (inv/i), use <item>, drop <item>, get <item> (loot corpses)")
+           (WRITE-CRLF (PLAYER-STREAM PLAYER)
+            "  Quests: quest, quest start apple, status")
+           (WRITE-CRLF (PLAYER-STREAM PLAYER)
+            "  Other: help, quit, . (repeat last command), suicide (test death)"))
+          ((MEMBER VERB '("quit" "exit") :TEST #'STRING=) :QUIT)
+          (T
+           (WRITE-CRLF (PLAYER-STREAM PLAYER)
+            (WRAP "Unknown command." :BRIGHT-RED))))))
+
+
+(DEFUN CLIENT-LOOP (SOCKET STREAM)
+  (LET ((PLAYER NIL) (GRACEFUL NIL))
+    (UNWIND-PROTECT
+        (LET ((NAME (ASK-FOR-NAME STREAM)))
+          (UNLESS NAME (RETURN-FROM CLIENT-LOOP))
+          (LET* ((START (STARTING-ROOM)) (ROOM-ID (ROOM-ID START)))
+            (SETF PLAYER
+                    (MAKE-PLAYER :NAME NAME :ROOM ROOM-ID :STREAM STREAM
+                     :SOCKET SOCKET))
+            (DOTIMES (I 3)
+              (ADD-TO-INVENTORY PLAYER (CREATE-ITEM "mana-potion")))
+            (ADD-CLIENT PLAYER)
+            (WRITE-CRLF STREAM
+             (WRAP "Welcome to the Endless Evening." :BRIGHT-CYAN))
+            (ANNOUNCE-TO-ROOM PLAYER
+             (FORMAT NIL "~a arrives." (WRAP NAME :BRIGHT-GREEN)) :INCLUDE-SELF
+             NIL)
+            (SEND-ROOM-OVERVIEW PLAYER)
+            (LET ((LAST-COMMAND NIL))
+              (LOOP (PROMPT STREAM)
+                    (LET ((LINE (READ-TELNET-LINE STREAM)))
+                      (WHEN (NULL LINE) (RETURN))
+                      (WHEN (AND (STRING= LINE ".") LAST-COMMAND)
+                        (SETF LINE LAST-COMMAND))
+                      (UNLESS (STRING= LINE ".") (SETF LAST-COMMAND LINE))
+                      (CASE (HANDLE-COMMAND PLAYER LINE)
+                        (:QUIT
+                         (SETF GRACEFUL T)
+                         (WRITE-CRLF STREAM
+                          (WRAP "May the stars guide your steps."
+                           :BRIGHT-YELLOW))
+                         (RETURN)))))))))
+    (WHEN PLAYER
+      (ANNOUNCE-TO-ROOM PLAYER
+       (IF GRACEFUL
+           (FORMAT NIL "~a fades into the night."
+                   (WRAP (PLAYER-NAME PLAYER) :BRIGHT-BLUE))
+           (FORMAT NIL "~a disconnects."
+                   (WRAP (PLAYER-NAME PLAYER) :BRIGHT-RED)))))
+    (WHEN PLAYER (REMOVE-CLIENT PLAYER))
+    (IGNORE-ERRORS (CLOSE STREAM))
+    (IGNORE-ERRORS (CLOSE SOCKET))))
+
+
+(DEFUN ACCEPT-LOOP (SOCKET)
+  (LOOP WHILE *RUNNING*
+        DO (HANDLER-CASE
+            (LET* ((CLIENT (SOCKET-ACCEPT SOCKET))
+                   (STREAM
+                    (SOCKET-MAKE-STREAM CLIENT :INPUT T :OUTPUT T :ELEMENT-TYPE
+                     'CHARACTER :EXTERNAL-FORMAT :LATIN-1 :BUFFERING :LINE)))
+              (MAKE-THREAD #'CLIENT-LOOP :NAME "mud-client" :ARGUMENTS
+               (LIST CLIENT STREAM)))
+            (SOCKET-ERROR (ERR)
+             (WHEN *RUNNING* (SERVER-LOG "Socket error: ~a" ERR))))))
+
+
+(DEFUN START (&KEY (PORT 4000))
+  (WHEN *RUNNING* (ERROR "Server already running."))
+  (INITIALIZE-WORLD)
+  (INITIALIZE-QUESTS)
+  (INITIALIZE-MOBS)
+  (SETF *RUNNING* T)
+  (LET ((SOCKET (MAKE-SERVER-SOCKET PORT)))
+    (SETF *LISTENER* SOCKET)
+    (SETF *LISTENER-THREAD*
+            (MAKE-THREAD (LAMBDA () (ACCEPT-LOOP SOCKET)) :NAME
+             "mud-acceptor"))
+    (SERVER-LOG "MUD listening on port ~a" PORT)
+    *LISTENER*))
+
+
+(DEFUN STOP ()
+  (WHEN *LISTENER*
+    (SETF *RUNNING* NIL)
+    (IGNORE-ERRORS (CLOSE *LISTENER*))
+    (SETF *LISTENER* NIL)
+    (WHEN *LISTENER-THREAD*
+      (JOIN-THREAD *LISTENER-THREAD*)
+      (SETF *LISTENER-THREAD* NIL))
+    (WITH-MUTEX (*CLIENTS-LOCK*)
+     (DOLIST (CLIENT *CLIENTS*)
+       (IGNORE-ERRORS (CLOSE (PLAYER-STREAM CLIENT)))
+       (IGNORE-ERRORS (CLOSE (PLAYER-SOCKET CLIENT))))
+     (SETF *CLIENTS* 'NIL))
+    (SERVER-LOG "MUD server stopped.")))
+
+
+(DEFUN AWAIT () (WHEN *LISTENER-THREAD* (JOIN-THREAD *LISTENER-THREAD*)))
+

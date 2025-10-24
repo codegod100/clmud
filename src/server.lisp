@@ -1,5 +1,8 @@
 (in-package :mud.server)
 
+;; Forward declaration
+(declaim (ftype (function (t t &key (:include-self t) (:exclude t)) t) announce-to-room))
+
 (defparameter *listener* nil)
 (defparameter *listener-thread* nil)
 (defparameter *clients* '())
@@ -194,12 +197,92 @@
                       ;; Move position past ]
                       (setf pos (1+ end)))))))))))
 
+(defun handle-look-at (player rest)
+  "Handle looking at a specific target"
+  (let ((target-name (string-trim '(#\Space #\Tab) rest)))
+    ;; First check if it's a player in the room
+    (let ((target-player nil))
+      (with-mutex (*clients-lock*)
+        (setf target-player
+              (find-if (lambda (p)
+                         (and (not (eq p player))
+                              (eq (player-room p) (player-room player))
+                              (string-equal (player-name p) target-name)))
+                       *clients*)))
+      (cond
+        ;; Found a player
+        (target-player
+         (write-crlf (player-stream player)
+                     (wrap (format nil "~a stands here. ~a"
+                                   (player-name target-player)
+                                   (get-player-stats target-player))
+                           :bright-green)))
+        ;; Check for a mob in the room
+        (t
+         (let ((mob (find-mob-in-room (player-room player) target-name)))
+           (if mob
+               (write-crlf (player-stream player)
+                           (wrap (format nil "~a: ~a~%Health: ~d/~d  Damage: ~d  Armor: ~d"
+                                         (mob-name mob)
+                                         (mob-description mob)
+                                         (mob-health mob)
+                                         (mob-max-health mob)
+                                         (mob-damage mob)
+                                         (mob-armor mob))
+                                 :bright-red))
+               ;; Check for a facet in the room
+               (let ((facet (find-facet-in-room (player-room player) target-name)))
+                 (if facet
+                     (write-crlf (player-stream player)
+                                 (wrap (cdr facet) :bright-magenta))
+                     ;; Check for an item in the room
+                     (let ((room-item (find-item-in-room (player-room player) target-name)))
+                       (if room-item
+                           (progn
+                             (write-crlf (player-stream player)
+                                         (wrap (format nil "~a: ~a"
+                                                       (item-name room-item)
+                                                       (mud.inventory::item-description room-item))
+                                               :bright-white))
+                             ;; If it's a corpse, show contents
+                             (when (eq (item-type room-item) :corpse)
+                               (let ((corpse-contents (gethash (item-name room-item)
+                                                               mud.combat::*corpse-data*)))
+                                 (if corpse-contents
+                                     (let ((counts (make-hash-table :test #'equal)))
+                                       ;; Count items by name
+                                       (dolist (it corpse-contents)
+                                         (incf (gethash (mud.inventory::item-name it) counts 0)))
+                                       ;; Build a string like "mana-potion (x3), sword"
+                                       (let ((contents-str
+                                               (with-output-to-string (out)
+                                                 (let ((first t))
+                                                   (maphash (lambda (name count)
+                                                              (unless first (format out ", "))
+                                                              (setf first nil)
+                                                              (if (> count 1)
+                                                                  (format out "~a (x~d)" name count)
+                                                                  (format out "~a" name)))
+                                                            counts)))))
+                                         (write-crlf (player-stream player)
+                                                     (wrap (format nil "Contents: ~a" contents-str) :bright-yellow))))
+                                     (write-crlf (player-stream player)
+                                                 (wrap "The corpse is empty." :bright-black))))))
+                           ;; Check for an item in inventory
+                           (let ((inv-item (find-in-inventory player target-name)))
+                             (if inv-item
+                                 (write-crlf (player-stream player)
+                                             (wrap (format nil "~a (in your inventory): ~a"
+                                                           (item-name inv-item)
+                                                           (mud.inventory::item-description inv-item))
+                                                   :bright-cyan))
+                                 (write-crlf (player-stream player)
+                                             (wrap (format nil "You don't see '~a' here." target-name)
+                                                   :bright-red)))))))))))))))
+
 (defun send-room-overview (player)
   (let* ((room-id (player-room player))
          (room (find-room room-id)))
-    (format t "DEBUG: send-room-overview called for player ~a, room-id ~a, room ~a~%"
-            (player-name player) room-id room)
-    (finish-output)
     (if room
         (let ((stream (player-stream player)))
           ;; Show map first
@@ -216,6 +299,12 @@
                 (write-crlf stream (wrap (format nil "Also here: ~{~a~^, ~}"
                                                 (mapcar #'player-name others))
                                         :bright-green)))))
+          ;; Show mobs in the room
+          (let ((mobs (get-mobs-in-room (player-room player))))
+            (when mobs
+              (write-crlf stream (wrap (format nil "Mobs: ~{~a~^, ~}"
+                                              (mapcar #'mob-name mobs))
+                                      :bright-red))))
           ;; Show items on the ground
           (let ((items-str (list-room-items (player-room player))))
             (when items-str
@@ -250,6 +339,15 @@
         (write-crlf (player-stream player)
                     (wrap (format nil "ERROR: Room ~a not found!" room-id) :bright-red)))))
 
+(defun announce-to-room (player message &key (include-self nil) (exclude nil))
+  (let ((room-id (player-room player)))
+    (with-mutex (*clients-lock*)
+      (dolist (other *clients*)
+        (when (and (eq (player-room other) room-id)
+                   (or include-self (not (eq other player)))
+                   (not (member other exclude)))
+          (ignore-errors (write-crlf (player-stream other) message)))))))
+
 (defun move-player (player direction)
   (let* ((room (current-room player))
          (vehicle-type (when (player-vehicle player)
@@ -270,15 +368,6 @@
                              :include-self nil)
           (send-room-overview player)
           t))))
-
-(defun announce-to-room (player message &key (include-self nil) (exclude nil))
-  (let ((room-id (player-room player)))
-    (with-mutex (*clients-lock*)
-      (dolist (other *clients*)
-        (when (and (eq (player-room other) room-id)
-                   (or include-self (not (eq other player)))
-                   (not (member other exclude)))
-          (ignore-errors (write-crlf (player-stream other) message)))))))
 
 (defun handle-say (player text)
   (let ((clean (string-trim '(#\Space #\Tab) text)))
@@ -394,77 +483,8 @@
       ((null verb) (send-room-overview player))
       ((member verb '("look" "l") :test #'string=)
        (if (zerop (length rest))
-           ;; Look at room
            (send-room-overview player)
-           ;; Look at specific target
-           (let ((target-name (string-trim '(#\Space #\Tab) rest)))
-             ;; First check if it's a player in the room
-             (let ((target-player nil))
-               (with-mutex (*clients-lock*)
-                 (setf target-player
-                       (find-if (lambda (p)
-                                  (and (not (eq p player))
-                                       (eq (player-room p) (player-room player))
-                                       (string-equal (player-name p) target-name)))
-                                *clients*)))
-               (cond
-                 ;; Found a player
-                 (target-player
-                  (write-crlf (player-stream player)
-                             (wrap (format nil "~a stands here. ~a"
-                                          (player-name target-player)
-                                          (get-player-stats target-player))
-                                   :bright-green)))
-                 ;; Check for a facet in the room
-                 (t
-                  (let ((facet (find-facet-in-room (player-room player) target-name)))
-                    (if facet
-                        (write-crlf (player-stream player)
-                                   (wrap (cdr facet) :bright-magenta))
-                        ;; Check for an item in the room
-                        (let ((room-item (find-item-in-room (player-room player) target-name)))
-                          (if room-item
-                              (progn
-                                (write-crlf (player-stream player)
-                                           (wrap (format nil "~a: ~a"
-                                                        (item-name room-item)
-                                                        (mud.inventory::item-description room-item))
-                                                 :bright-white))
-                                ;; If it's a corpse, show contents
-                                (when (eq (item-type room-item) :corpse)
-                                  (let ((corpse-contents (gethash (item-name room-item)
-                                                                  mud.combat::*corpse-data*)))
-                                    (if corpse-contents
-                                        (let ((counts (make-hash-table :test #'equal)))
-                                          ;; Count items by name
-                                          (dolist (it corpse-contents)
-                                            (incf (gethash (mud.inventory::item-name it) counts 0)))
-                                          ;; Build a string like "mana-potion (x3), sword"
-                                          (let ((contents-str
-                                                  (with-output-to-string (out)
-                                                    (let ((first t))
-                                                      (maphash (lambda (name count)
-                                                                 (unless first (format out ", "))
-                                                                 (setf first nil)
-                                                                 (if (> count 1)
-                                                                     (format out "~a (x~d)" name count)
-                                                                     (format out "~a" name)))
-                                                               counts)))))
-                                            (write-crlf (player-stream player)
-                                                       (wrap (format nil "Contents: ~a" contents-str) :bright-yellow))))
-                                        (write-crlf (player-stream player)
-                                                   (wrap "The corpse is empty." :bright-black))))))
-                              ;; Check for an item in inventory
-                              (let ((inv-item (find-in-inventory player target-name)))
-                                (if inv-item
-                                    (write-crlf (player-stream player)
-                                               (wrap (format nil "~a (in your inventory): ~a"
-                                                            (item-name inv-item)
-                                                            (mud.inventory::item-description inv-item))
-                                                     :bright-cyan))
-                                    (write-crlf (player-stream player)
-                                               (wrap (format nil "You don't see '~a' here." target-name)
-                                                     :bright-red))))))))))))))
+           (handle-look-at player rest)))
       ((member verb '("move" "go") :test #'string=)
        (if (zerop (length rest))
            (write-crlf (player-stream player) (wrap "Go where?" :bright-red))
@@ -500,6 +520,138 @@
                             (spell-description spell)))))
       ((string= verb "cast")
        (handle-cast player rest))
+      ((string= verb "attack")
+       (if (zerop (length rest))
+           (write-crlf (player-stream player) (wrap "Attack what? Usage: attack <target>" :bright-red))
+           (let* ((target-name (string-trim '(#\Space #\Tab) rest))
+                  (mob (find-mob-in-room (player-room player) target-name)))
+             (if mob
+                 (let* ((player-damage (get-player-damage player))
+                        (mob-armor (mob-armor mob))
+                        (actual-damage (max 1 (- player-damage mob-armor))))
+                   (write-crlf (player-stream player)
+                              (wrap (format nil "You attack ~a for ~d damage!"
+                                           (mob-name mob) actual-damage)
+                                    :bright-red))
+                   (announce-to-room player
+                                    (format nil "~a attacks ~a!"
+                                           (wrap (player-name player) :bright-yellow)
+                                           (mob-name mob))
+                                    :include-self nil)
+                   (let ((mob-died (damage-mob mob actual-damage)))
+                     (if mob-died
+                         (progn
+                           (write-crlf (player-stream player)
+                                      (wrap (format nil "You have slain ~a!" (mob-name mob))
+                                            :bright-green))
+                           (announce-to-room player
+                                            (format nil "~a has slain ~a!"
+                                                   (wrap (player-name player) :bright-green)
+                                                   (mob-name mob))
+                                            :include-self nil)
+                           ;; Award XP
+                           (let ((xp (mob-xp-reward mob)))
+                             (let ((leveled-up (award-xp player xp)))
+                               (write-crlf (player-stream player)
+                                          (wrap (format nil "You gained ~d XP!" xp) :bright-cyan))
+                               (when leveled-up
+                                 (write-crlf (player-stream player)
+                                            (wrap (format nil "*** LEVEL UP! You are now level ~d! ***"
+                                                         (player-level player))
+                                                  :bright-magenta))
+                                 (write-crlf (player-stream player)
+                                            (wrap (format nil "Health: +10 (now ~d)  Mana: +5 (now ~d)"
+                                                         (player-max-health player)
+                                                         (player-max-mana player))
+                                                  :bright-green)))))
+                           ;; Drop loot
+                           (let ((loot (get-mob-loot mob)))
+                             (when loot
+                               (dolist (item loot)
+                                 (add-item-to-room (player-room player) item))
+                               (write-crlf (player-stream player)
+                                          (wrap (format nil "~a dropped: ~{~a~^, ~}"
+                                                       (mob-name mob)
+                                                       (mapcar #'item-name loot))
+                                                :bright-yellow))))
+                           ;; Remove mob from room
+                           (remove-mob-from-room (player-room player) mob))
+                         (progn
+                           (write-crlf (player-stream player)
+                                      (format nil "~a has ~d/~d health remaining."
+                                             (mob-name mob)
+                                             (mob-health mob)
+                                             (mob-max-health mob)))
+                           ;; Mob counter-attacks
+                           (let* ((mob-dmg (mob-damage mob))
+                                  (player-armor (get-player-armor player))
+                                  (counter-damage (max 1 (- mob-dmg player-armor))))
+                             (modify-health player (- counter-damage))
+                             (write-crlf (player-stream player)
+                                        (wrap (format nil "~a attacks you for ~d damage!"
+                                                     (mob-name mob) counter-damage)
+                                              :bright-red))
+                             (announce-to-room player
+                                              (format nil "~a is attacked by ~a!"
+                                                     (wrap (player-name player) :bright-red)
+                                                     (mob-name mob))
+                                              :include-self nil)
+                             (unless (player-alive-p player)
+                               (write-crlf (player-stream player)
+                                          (wrap "You have been slain!" :bright-red))
+                               (announce-to-room player
+                                                (format nil "~a has been slain by ~a!"
+                                                       (wrap (player-name player) :bright-red)
+                                                       (mob-name mob))
+                                                :include-self nil)
+                               (handle-player-death player)
+                               (write-crlf (player-stream player)
+                                          (wrap "You awaken in the graveyard, wounded but alive..." :bright-black))
+                               (send-room-overview player)))))))
+                 (write-crlf (player-stream player)
+                            (wrap (format nil "There is no ~a here to attack." target-name)
+                                  :bright-red))))))
+      ((string= verb "equip")
+       (if (zerop (length rest))
+           (write-crlf (player-stream player) (wrap "Equip what? Usage: equip <item>" :bright-red))
+           (let* ((item-name (string-trim '(#\Space #\Tab) rest))
+                  (item (find-in-inventory player item-name)))
+             (if item
+                 (progn
+                   (remove-from-inventory player item)
+                   (multiple-value-bind (success message) (equip-item player item)
+                     (write-crlf (player-stream player)
+                                (wrap message (if success :bright-green :bright-red)))
+                     (when success
+                       (announce-to-room player
+                                        (format nil "~a equips ~a."
+                                               (wrap (player-name player) :bright-yellow)
+                                               item-name)
+                                        :include-self nil))))
+                 (write-crlf (player-stream player)
+                            (wrap (format nil "You don't have any ~a." item-name) :bright-red))))))
+      ((string= verb "unequip")
+       (if (zerop (length rest))
+           (write-crlf (player-stream player) (wrap "Unequip what? Usage: unequip weapon/armor" :bright-red))
+           (let* ((slot-name (string-trim '(#\Space #\Tab) rest))
+                  (slot (cond
+                          ((or (string-equal slot-name "weapon") (string-equal slot-name "w"))
+                           :weapon)
+                          ((or (string-equal slot-name "armor") (string-equal slot-name "a"))
+                           :armor)
+                          (t nil))))
+             (if slot
+                 (multiple-value-bind (success message) (unequip-item player slot)
+                   (write-crlf (player-stream player)
+                              (wrap message (if success :bright-green :bright-red)))
+                   (when success
+                     (announce-to-room player
+                                      (format nil "~a unequips ~a."
+                                             (wrap (player-name player) :bright-yellow)
+                                             slot-name)
+                                      :include-self nil)))
+                 (write-crlf (player-stream player)
+                            (wrap "Unequip weapon or armor? Usage: unequip weapon/armor" :bright-red))))))
       ((member verb '("inventory" "inv" "i") :test #'string=)
        (write-crlf (player-stream player) (list-inventory player)))
       ((string= verb "use")
@@ -590,11 +742,7 @@
                         (format nil "~a falls to the ground, lifeless."
                                (wrap (player-name player) :bright-red))
                         :include-self nil)
-       (format t "DEBUG: Before handle-player-death, room is ~a~%" (player-room player))
-       (finish-output)
        (handle-player-death player)
-       (format t "DEBUG: After handle-player-death, room is ~a~%" (player-room player))
-       (finish-output)
        (write-crlf (player-stream player)
                   (wrap "You have died! Your items have been left in a corpse." :bright-red))
        (write-crlf (player-stream player)
@@ -696,7 +844,21 @@
                    (format nil "XP: ~d/~d  (Need ~d more to level)"
                           (player-xp player)
                           (mud.player::xp-for-level (+ (player-level player) 1))
-                          (xp-to-next-level player))))
+                          (xp-to-next-level player)))
+       (write-crlf (player-stream player)
+                   (format nil "Damage: ~d  Armor: ~d"
+                          (get-player-damage player)
+                          (get-player-armor player)))
+       (when (player-equipped-weapon player)
+         (write-crlf (player-stream player)
+                    (format nil "Weapon: ~a (~+d damage)"
+                           (item-name (player-equipped-weapon player))
+                           (item-damage (player-equipped-weapon player)))))
+       (when (player-equipped-armor player)
+         (write-crlf (player-stream player)
+                    (format nil "Armor: ~a (~+d armor)"
+                           (item-name (player-equipped-armor player))
+                           (item-armor (player-equipped-armor player))))))
       ((string= verb "quest")
        (if (zerop (length rest))
            ;; Show active quests
@@ -727,7 +889,8 @@
                    (wrap "Commands:" :bright-yellow))
        (write-crlf (player-stream player) "  Movement: look (l), go <dir> (n/s/e/w/u/d/ne/nw/se/sw), enter <vehicle>, exit, uber <location>")
        (write-crlf (player-stream player) "  Social: say <text>, who")
-       (write-crlf (player-stream player) "  Combat: cast <spell> <target>, stats, spells")
+       (write-crlf (player-stream player) "  Combat: attack <mob>, cast <spell> <target>, stats, spells")
+       (write-crlf (player-stream player) "  Equipment: equip <item>, unequip weapon/armor")
        (write-crlf (player-stream player) "  Inventory: inventory (inv/i), use <item>, drop <item>, get <item> (loot corpses)")
        (write-crlf (player-stream player) "  Quests: quest, quest start apple, status")
        (write-crlf (player-stream player) "  Other: help, quit, . (repeat last command), suicide (test death)"))
@@ -795,6 +958,7 @@
     (error "Server already running."))
   (initialize-world)
   (initialize-quests)
+  (initialize-mobs)
   (setf *running* t)
   (let ((socket (make-server-socket port)))
     (setf *listener* socket)
