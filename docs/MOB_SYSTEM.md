@@ -146,7 +146,7 @@ Examples:
 | Rusty Dagger | +5 | Kill Goblin Scout |
 | Bone Sword | +10 | Kill Skeleton Warrior |
 | Steel Sword | +15 | Kill Bandit |
-| Guardian Axe | +25 | Kill Forest Guardian (boss) |
+| Guardian Axe | +25 | Kill Forest Guardian (boss in Ancient Grove) |
 
 ### Armor
 
@@ -154,7 +154,7 @@ Examples:
 |------|-------|------------|
 | Rusted Chainmail | +5 | Kill Skeleton Warrior |
 | Leather Armor | +10 | Kill Bandit |
-| Nature Amulet | +15 | Kill Forest Guardian (boss) |
+| Nature Amulet | +15 | Kill Forest Guardian (boss in Ancient Grove) |
 
 ### Other Loot
 
@@ -225,7 +225,7 @@ Armor: leather-armor (+10 armor)
 3. **Watch Your Health** - Mobs hit back! Use health potions if needed
 4. **Armor Matters** - Reduces damage significantly in prolonged fights
 5. **Level Up First** - Complete the apple quest for easy XP and stats
-6. **Boss Fights** - The Forest Guardian is very tough - gear up first!
+6. **Boss Fights** - The Forest Guardian prowls the Ancient Grove east of Whispering Wood. Gear up before stepping into its lair!
 
 ## Future Enhancements
 

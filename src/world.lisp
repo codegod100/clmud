@@ -83,9 +83,16 @@
                "Whispering Wood"
                "Towering pines murmur secrets overhead, their needles shimmering with dew. Somewhere deeper within, an [owl] hoots, beckoning the brave. A [standing stone] covered in moss rises from the forest floor."
                '((:west . moonlit-lane)
+                 (:east . ancient-grove)
                  (:up :air . sky-over-forest))
                '(("owl" . "The owl watches you with knowing eyes. It seems to be guarding something in the deeper woods...")
                  ("standing stone" . "Ancient runes cover the stone. You can barely make out the words: 'Only the worthy may pass beyond...'")))
+  (define-room 'ancient-grove
+               "Ancient Grove"
+               "Moonlight spills into this hidden grove, illuminating a ring of [standing stones]. The air hums with primal power, and deep claw marks score the surrounding trees. A hush falls here -- the domain of the Forest Guardian."
+               '((:west . whispering-wood))
+               '(("standing stones" . "Each stone bears the sigil of a guardian spirit. The runes glow brighter as you approach, as if judging your resolve.")
+                 ("claw marks" . "Massive claw marks gouge the bark. Whatever prowls this grove is far larger than the wolves near the village.")))
   (define-room 'market-stalls
                "Closing Market"
                "Canopies ripple in the breeze as merchants shutter their stalls. The lingering aroma of [roasted chestnuts] and fresh parchment fills the air. A [notice board] displays various announcements."

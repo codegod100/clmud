@@ -160,12 +160,12 @@ Mob attacks you: 3 damage        ← Minimal damage! (18 - 15 armor)
 - **rusty-dagger** (+5) - Easy to get from goblins
 - **bone-sword** (+10) - Medium difficulty from skeletons  
 - **steel-sword** (+12) - Medium-hard from bandits
-- **guardian-axe** (+20) - Very hard boss drop
+- **guardian-axe** (+20) - Very hard boss drop (Forest Guardian in the Ancient Grove)
 
 ### Armor (Reduces Damage Taken)
 - **rusted-chainmail** (+5 armor) - Medium difficulty from skeletons
 - **leather-armor** (+10 armor) - Medium-hard from bandits
-- **nature-amulet** (+15 armor) - Very hard boss drop
+- **nature-amulet** (+15 armor) - Very hard boss drop (Forest Guardian in the Ancient Grove)
 
 ## Pro Tips
 

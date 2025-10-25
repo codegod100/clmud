@@ -173,29 +173,107 @@
   (let ((room-id (player-room player)))
     (find-room room-id)))
 
+(defun split-on-whitespace (text)
+  "Split text on whitespace into a list of words"
+  (let ((trimmed (string-trim '(#\Space #\Tab) text)))
+    (if (zerop (length trimmed))
+        nil
+        (loop with start = 0
+              with len = (length trimmed)
+              while (< start len)
+              for end = (or (position-if (lambda (c) (or (char= c #\Space) (char= c #\Tab)))
+                                         trimmed :start start)
+                           len)
+              collect (subseq trimmed start end)
+              do (setf start (position-if-not (lambda (c) (or (char= c #\Space) (char= c #\Tab)))
+                                             trimmed :start end))
+              while start))))
+
+(defun word-wrap (text width)
+  "Wrap text at word boundaries to fit within specified width."
+  (let ((result "")
+        (current-line "")
+        (current-word "")
+        (current-line-width 0)
+        (current-word-width 0)
+        (in-escape nil)
+        (i 0)
+        (len (length text)))
+    (loop while (< i len) do
+      (let ((ch (char text i)))
+        (cond
+          ;; Start of ANSI escape sequence
+          ((and (char= ch (code-char 27))
+                (< (1+ i) len)
+                (char= (char text (1+ i)) #\[))
+           (setf in-escape t)
+           (setf current-word (concatenate 'string current-word (string ch)))
+           (incf i))
+          ;; End of ANSI escape sequence
+          ((and in-escape (char= ch #\m))
+           (setf current-word (concatenate 'string current-word (string ch)))
+           (setf in-escape nil)
+           (incf i))
+          ;; Inside escape sequence
+          (in-escape
+           (setf current-word (concatenate 'string current-word (string ch)))
+           (incf i))
+          ;; Space - end of word, potential wrap point
+          ((char= ch #\Space)
+           ;; Check if adding this word would exceed width
+           (if (and (> current-line-width 0)
+                    (> (+ current-line-width 1 current-word-width) width))
+               ;; Wrap: finish current line and start new one with this word
+               (progn
+                 (setf result (concatenate 'string result current-line (string #\Newline)))
+                 (setf current-line current-word)
+                 (setf current-line-width current-word-width))
+               ;; Add word to current line
+               (progn
+                 (when (> current-line-width 0)
+                   (setf current-line (concatenate 'string current-line " "))
+                   (incf current-line-width))
+                 (setf current-line (concatenate 'string current-line current-word))
+                 (setf current-line-width (+ current-line-width current-word-width))))
+           ;; Reset word
+           (setf current-word "")
+           (setf current-word-width 0)
+           (incf i))
+          ;; Regular character
+          (t
+           (setf current-word (concatenate 'string current-word (string ch)))
+           (incf current-word-width)
+           (incf i)))))
+    ;; Add any remaining word
+    (when (> current-word-width 0)
+      (if (and (> current-line-width 0)
+               (> (+ current-line-width 1 current-word-width) width))
+          (progn
+            (setf result (concatenate 'string result current-line (string #\Newline)))
+            (setf current-line current-word))
+          (progn
+            (when (> current-line-width 0)
+              (setf current-line (concatenate 'string current-line " ")))
+            (setf current-line (concatenate 'string current-line current-word)))))
+    ;; Add remaining text
+    (concatenate 'string result current-line)))
+
 (defun colorize-facets (text)
-  "Replace [facet] markers with colorized text"
+  "Replace [facet] markers with colorized text without dropping trailing content."
   (with-output-to-string (out)
-    (let ((pos 0))
-      (loop
-        (let ((start (search "[" text :start2 pos)))
-          (if (null start)
-              (progn
-                (write-string (subseq text pos) out)
-                (return))
-              (let ((end (search "]" text :start2 start)))
-                (if (null end)
-                    (progn
-                      (write-string (subseq text pos) out)
-                      (return))
-                    (progn
-                      ;; Write text before [
-                      (write-string (subseq text pos start) out)
-                      ;; Write colorized facet name
-                      (let ((facet-name (subseq text (1+ start) end)))
-                        (write-string (wrap facet-name :bright-yellow) out))
-                      ;; Move position past ]
-                      (setf pos (1+ end)))))))))))
+    (loop with len = (length text)
+          for idx from 0 below len
+          do (let ((ch (char text idx)))
+               (if (char= ch #\[)
+                   (let ((close (position #\] text :start (1+ idx))))
+                     (if close
+                         (progn
+                           (let ((facet-name (subseq text (1+ idx) close)))
+                             (write-string (wrap facet-name :bright-yellow) out))
+                           (setf idx close))
+                         ;; No closing bracket -- treat as literal.
+                         (write-char ch out)))
+                   (write-char ch out))))))
 
 (defun handle-look-at (player rest)
   "Handle looking at a specific target"
@@ -299,7 +377,8 @@
               (write-string converted stream)
               (finish-output stream)))
           (write-crlf stream (wrap (format nil "~a" (room-name room)) :bold :bright-cyan))
-          (write-crlf stream (colorize-facets (room-description room)))
+          (let ((colored-desc (colorize-facets (room-description room))))
+            (write-crlf stream (word-wrap colored-desc 80)))
           (write-crlf stream "")
           ;; Show other players in the room
           (with-mutex (*clients-lock*)
@@ -564,22 +643,6 @@
                    ;; No player or mob found
                    (write-crlf (player-stream caster)
                               (wrap (format nil "No target named '~a' is here." target-name) :bright-red))))))))))))
-
-(defun split-on-whitespace (text)
-  "Split text on whitespace into a list of words"
-  (let ((trimmed (string-trim '(#\Space #\Tab) text)))
-    (if (zerop (length trimmed))
-        nil
-        (loop with start = 0
-              with len = (length trimmed)
-              while (< start len)
-              for end = (or (position-if (lambda (c) (or (char= c #\Space) (char= c #\Tab)))
-                                         trimmed :start start)
-                           len)
-              collect (subseq trimmed start end)
-              do (setf start (position-if-not (lambda (c) (or (char= c #\Space) (char= c #\Tab)))
-                                             trimmed :start end))
-              while start))))
 
 (defun parse-command (line)
   (let* ((trimmed (string-trim *whitespace-chars* line)))
@@ -1287,7 +1350,7 @@
   (loop while *running* do
     (handler-case
         (let* ((client (socket-accept socket))
-               (stream (socket-make-stream client :input t :output t :element-type 'character :external-format :latin-1 :buffering :line)))
+               (stream (socket-make-stream client :input t :output t :element-type 'character :external-format :latin-1 :buffering :none)))
           (make-thread #'client-loop :name "mud-client" :arguments (list client stream)))
       (socket-error (err)
         (when *running*

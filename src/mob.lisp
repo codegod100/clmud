@@ -152,4 +152,5 @@
   (spawn-mob :goblin 'mud.world::whispering-wood)
   (spawn-mob :wolf 'mud.world::whispering-wood)
   (spawn-mob :skeleton 'mud.world::graveyard)
-  (spawn-mob :bandit 'mud.world::moonlit-lane))
+  (spawn-mob :bandit 'mud.world::moonlit-lane)
+  (spawn-mob :forest-guardian 'mud.world::ancient-grove))

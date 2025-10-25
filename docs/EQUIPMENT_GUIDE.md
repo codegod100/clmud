@@ -143,7 +143,7 @@ Inventory (4 items):
 - **Whispering Wood:** Goblin (easy), Wolf (medium)
 - **Moonlit Lane:** Bandit (medium-hard) - drops steel-sword & leather-armor!
 - **Graveyard:** Skeleton (hard) - drops bone-sword & rusted-chainmail
-- **Forest (Boss):** Forest Guardian (very hard) - drops guardian-axe & nature-amulet
+- **Forest (Boss):** Forest Guardian (very hard) - found in the Ancient Grove east of Whispering Wood; drops guardian-axe & nature-amulet
 
 ## Recommended Progression
 
@@ -151,4 +151,4 @@ Inventory (4 items):
 2. Equip rusty-dagger, kill more mobs to level up
 3. Kill bandits to get steel-sword and leather-armor
 4. With good equipment, tackle skeletons
-5. At higher levels with best equipment, challenge the Forest Guardian
+5. At higher levels with best equipment, challenge the Forest Guardian in the Ancient Grove

@@ -147,14 +147,14 @@ drop <item>        - Drop item to ground
 | rusty-dagger | +5 | Goblins (Whispering Wood) |
 | bone-sword | +10 | Skeletons (Graveyard) |
 | steel-sword | +15 | Bandits (Moonlit Lane) |
-| guardian-axe | +25 | Forest Guardian (Boss) |
+| guardian-axe | +25 | Forest Guardian (Boss - Ancient Grove) |
 
 ### Armor (+Defense)
 | Item | Bonus | Source |
 |------|-------|--------|
 | rusted-chainmail | +5 | Skeletons (Graveyard) |
 | leather-armor | +10 | Bandits (Moonlit Lane) |
-| nature-amulet | +15 | Forest Guardian (Boss) |
+| nature-amulet | +15 | Forest Guardian (Boss - Ancient Grove) |
 
 ## Tips
 
@@ -163,3 +163,4 @@ drop <item>        - Drop item to ground
 3. **Compare stats** - With stats visible, you can make informed decisions
 4. **Try different loadouts** - Easy to swap between light/fast vs. heavy/defensive
 5. **The [EQUIPPED] tag** - Makes it impossible to forget what you're wearing
+6. **Hunting the boss** - Travel to Whispering Wood, then push east into the Ancient Grove to confront the Forest Guardian for top-tier drops
