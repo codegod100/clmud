@@ -15,15 +15,18 @@
 (defstruct vehicle
   name
   type
-  description)
+  description
+  (damage 0 :type integer)     ; Damage when ramming
+  (speed 0 :type integer))     ; Speed/momentum bonus
 
 (defparameter *vehicles* (make-hash-table :test 'equal)
   "Hash table of vehicle name -> vehicle struct")
 
-(defun define-vehicle (name type description)
+(defun define-vehicle (name type description &key (damage 0) (speed 0))
   "Define a vehicle that can be entered"
   (setf (gethash name *vehicles*)
-        (make-vehicle :name name :type type :description description)))
+        (make-vehicle :name name :type type :description description
+                      :damage damage :speed speed)))
 
 (defun find-vehicle (name)
   "Find a vehicle by name (case-insensitive)"
@@ -39,10 +42,10 @@
 
   ;; Define vehicles
   (define-vehicle "skiff" :water "A small wooden boat that glides across water on its own.")
-  (define-vehicle "boat" :water "A small wooden boat that glides across water on its own.")
-  (define-vehicle "eternal wanderer" :water "A small wooden boat that glides across water on its own.")
-  (define-vehicle "car" :uber "A sleek, magical carriage that can take you anywhere instantly.")
-  (define-vehicle "carriage" :uber "A sleek, magical carriage that can take you anywhere instantly.")
+  (define-vehicle "boat" :water "A small wooden boat that glides across water on its own." :damage 5 :speed 2)
+  (define-vehicle "eternal wanderer" :water "A small wooden boat that glides across water on its own." :damage 5 :speed 2)
+  (define-vehicle "car" :uber "A sleek, magical carriage that can take you anywhere instantly." :damage 30 :speed 10)
+  (define-vehicle "carriage" :uber "A sleek, magical carriage that can take you anywhere instantly." :damage 30 :speed 10)
 
   (define-room 'village-square
                "Village Square"

@@ -721,6 +721,109 @@
                  (write-crlf (player-stream player)
                             (wrap (format nil "There is no ~a here to attack." target-name)
                                   :bright-red))))))
+      ((string= verb "ram")
+       (cond
+         ((null (player-vehicle player))
+          (write-crlf (player-stream player)
+                     (wrap "You need to be in a vehicle to ram!" :bright-red)))
+         ((zerop (length rest))
+          (write-crlf (player-stream player)
+                     (wrap "Ram what? Usage: ram <target>" :bright-red)))
+         (t
+          (let* ((target-name (string-trim '(#\Space #\Tab) rest))
+                 (mob (find-mob-in-room (player-room player) target-name)))
+            (if mob
+                (let* ((vehicle-item (player-vehicle player))
+                       (vehicle-name (item-name vehicle-item))
+                       (vehicle-def (find-vehicle vehicle-name))
+                       (base-damage (if vehicle-def (vehicle-damage vehicle-def) 10))
+                       (speed-bonus (if vehicle-def (vehicle-speed vehicle-def) 0))
+                       (total-damage (+ base-damage speed-bonus))
+                       (mob-armor (mob-armor mob))
+                       (actual-damage (max 1 (- total-damage mob-armor))))
+                  (write-crlf (player-stream player)
+                             (wrap (format nil "You ram ~a with your ~a for ~d damage!"
+                                          (mob-name mob) vehicle-name actual-damage)
+                                   :bright-red))
+                  (announce-to-room player
+                                   (format nil "~a rams ~a with ~a!"
+                                          (wrap (player-name player) :bright-yellow)
+                                          (mob-name mob)
+                                          vehicle-name)
+                                   :include-self nil)
+                  (let ((mob-died (damage-mob mob actual-damage)))
+                    (if mob-died
+                        (progn
+                          (write-crlf (player-stream player)
+                                     (wrap (format nil "You have slain ~a!" (mob-name mob))
+                                           :bright-green))
+                          (announce-to-room player
+                                           (format nil "~a has slain ~a!"
+                                                  (wrap (player-name player) :bright-green)
+                                                  (mob-name mob))
+                                           :include-self nil)
+                          ;; Award XP
+                          (let ((xp (mob-xp-reward mob)))
+                            (let ((leveled-up (award-xp player xp)))
+                              (write-crlf (player-stream player)
+                                         (wrap (format nil "You gained ~d XP!" xp) :bright-cyan))
+                              (when leveled-up
+                                (write-crlf (player-stream player)
+                                           (wrap (format nil "*** LEVEL UP! You are now level ~d! ***"
+                                                        (player-level player))
+                                                 :bright-magenta))
+                                (write-crlf (player-stream player)
+                                           (wrap (format nil "Health: +10 (now ~d)  Mana: +5 (now ~d)"
+                                                        (player-max-health player)
+                                                        (player-max-mana player))
+                                                 :bright-green)))))
+                          ;; Drop loot
+                          (let ((loot (get-mob-loot mob)))
+                            (when loot
+                              (dolist (item loot)
+                                (add-item-to-room (player-room player) item))
+                              (write-crlf (player-stream player)
+                                         (wrap (format nil "~a dropped: ~{~a~^, ~}"
+                                                      (mob-name mob)
+                                                      (mapcar #'item-name loot))
+                                               :bright-yellow))))
+                          ;; Remove mob from room
+                          (remove-mob-from-room (player-room player) mob))
+                        (progn
+                          (write-crlf (player-stream player)
+                                     (format nil "~a has ~d/~d health remaining."
+                                            (mob-name mob)
+                                            (mob-health mob)
+                                            (mob-max-health mob)))
+                          ;; Mob counter-attacks
+                          (let* ((mob-dmg (mob-damage mob))
+                                 (player-armor (get-player-armor player))
+                                 (counter-damage (max 1 (- mob-dmg player-armor))))
+                            (modify-health player (- counter-damage))
+                            (write-crlf (player-stream player)
+                                       (wrap (format nil "~a attacks you for ~d damage!"
+                                                    (mob-name mob) counter-damage)
+                                             :bright-red))
+                            (announce-to-room player
+                                             (format nil "~a is attacked by ~a!"
+                                                    (wrap (player-name player) :bright-red)
+                                                    (mob-name mob))
+                                             :include-self nil)
+                            (unless (player-alive-p player)
+                              (write-crlf (player-stream player)
+                                         (wrap "You have been slain!" :bright-red))
+                              (announce-to-room player
+                                               (format nil "~a has been slain by ~a!"
+                                                      (wrap (player-name player) :bright-red)
+                                                      (mob-name mob))
+                                               :include-self nil)
+                              (handle-player-death player)
+                              (write-crlf (player-stream player)
+                                         (wrap "You awaken in the graveyard, wounded but alive..." :bright-black))
+                              (send-room-overview player)))))))
+                (write-crlf (player-stream player)
+                           (wrap (format nil "There is no ~a here to ram." target-name)
+                                 :bright-red)))))))
       ((string= verb "equip")
        (if (zerop (length rest))
            (write-crlf (player-stream player) (wrap "Equip what? Usage: equip <item>" :bright-red))
@@ -864,7 +967,8 @@
        (if (zerop (length rest))
            (write-crlf (player-stream player) (wrap "Enter what?" :bright-red))
            (let* ((target-name (string-trim '(#\Space #\Tab) rest))
-                  (vehicle-item (find-item-in-room (player-room player) target-name)))
+                  (vehicle-item (or (find-item-in-room (player-room player) target-name)
+                                    (find-in-inventory player target-name))))
              (cond
                ((player-vehicle player)
                 (write-crlf (player-stream player)
@@ -875,8 +979,10 @@
                 (write-crlf (player-stream player)
                            (wrap (format nil "You can't enter '~a'." target-name) :bright-red)))
                (t
-                ;; Remove vehicle from room, store in player
-                (remove-item-from-room (player-room player) vehicle-item)
+                ;; Remove vehicle from room or inventory, store in player
+                (if (find-item-in-room (player-room player) target-name)
+                    (remove-item-from-room (player-room player) vehicle-item)
+                    (remove-from-inventory player vehicle-item))
                 (setf (player-vehicle player) vehicle-item)
                 (write-crlf (player-stream player)
                            (wrap (format nil "You enter ~a." (item-name vehicle-item))
@@ -997,7 +1103,7 @@
                    (wrap "Commands:" :bright-yellow))
        (write-crlf (player-stream player) "  Movement: look (l), go <dir> (n/s/e/w/u/d/ne/nw/se/sw), enter <vehicle>, exit, uber <location>")
        (write-crlf (player-stream player) "  Social: say <text>, who")
-       (write-crlf (player-stream player) "  Combat: attack <mob>, cast <spell> <target>, stats, spells")
+       (write-crlf (player-stream player) "  Combat: attack <mob>, ram <mob> (in vehicle), cast <spell> <target>, stats, spells")
        (write-crlf (player-stream player) "  Equipment: equip <item>, unequip weapon/armor")
        (write-crlf (player-stream player) "  Inventory: inventory (inv/i), use <item>, drop <item>, get <item> (loot corpses)")
        (write-crlf (player-stream player) "  Quests: quest, quest start apple, status")

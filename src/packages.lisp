@@ -8,7 +8,7 @@
            :get-mobs-in-room :find-mob-in-room :remove-mob-from-room
            :mob-alive-p :damage-mob :get-mob-loot :initialize-mobs
            :mob-name :mob-description :mob-health :mob-max-health
-           :mob-damage :mob-armor :mob-xp-reward))
+           :mob-damage :mob-armor :mob-xp-reward :mob-aggressive))
 
 (defpackage :mud.quest
   (:use :cl)
@@ -21,7 +21,8 @@
   (:shadow :room)
   (:export :initialize-world :find-room :find-room-by-name :starting-room :neighbor :room-id :room-name :room-description :room-exits
            :add-item-to-room :remove-item-from-room :find-item-in-room :list-room-items :room-items :generate-map
-           :find-facet-in-room :room-facets :find-vehicle :vehicle-name :vehicle-type :vehicle-description))
+           :find-facet-in-room :room-facets :find-vehicle :vehicle-name :vehicle-type :vehicle-description
+           :vehicle-damage :vehicle-speed))
 
 (defpackage :mud.player
   (:use :cl)
@@ -51,7 +52,8 @@
   (:import-from :mud.ansi :wrap :code :strip :gradient)
   (:import-from :mud.world :initialize-world :find-room :find-room-by-name :starting-room :neighbor :room-id :room-name :room-description :room-exits
                            :add-item-to-room :remove-item-from-room :find-item-in-room :list-room-items :generate-map
-                           :find-facet-in-room :room-facets :find-vehicle :vehicle-name :vehicle-type :vehicle-description)
+                           :find-facet-in-room :room-facets :find-vehicle :vehicle-name :vehicle-type :vehicle-description
+                           :vehicle-damage :vehicle-speed)
   (:import-from :mud.player :make-player :player-name :player-room :set-player-room :player-stream :player-socket
                              :player-health :player-max-health :player-mana :player-max-mana :player-level
                              :modify-health :modify-mana :player-alive-p :player-inventory :player-vehicle
@@ -68,5 +70,5 @@
   (:import-from :mud.mob :get-mobs-in-room :find-mob-in-room :remove-mob-from-room
                          :damage-mob :get-mob-loot :initialize-mobs :mob-alive-p
                          :mob-name :mob-description :mob-health :mob-max-health
-                         :mob-damage :mob-armor :mob-xp-reward)
+                         :mob-damage :mob-armor :mob-xp-reward :mob-aggressive)
   (:export :start :stop :await))
