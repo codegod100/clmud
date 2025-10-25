@@ -1,5 +1,10 @@
 (in-package :mud.inventory)
 
+(eval-when (:compile-toplevel :load-toplevel :execute)
+  (declaim (ftype (function (t t) *) mud.world:add-item-to-room))
+  (declaim (ftype (function (t t) *) mud.world:remove-item-from-room))
+  (declaim (ftype (function (t t) *) mud.world:find-item-in-room)))
+
 ;;; Item structure
 (defstruct item
   (name "" :type string)

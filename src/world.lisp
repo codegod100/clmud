@@ -11,6 +11,11 @@
 (defparameter *rooms* (make-hash-table :test #'eq))
 (defparameter *starting-room* 'village-square)
 
+(eval-when (:compile-toplevel :load-toplevel :execute)
+  (declaim (ftype (function (t t) *) add-item-to-room))
+  (declaim (ftype (function (t t) *) remove-item-from-room))
+  (declaim (ftype (function (t t) *) find-item-in-room)))
+
 ;;; Vehicle definitions
 (defstruct vehicle
   name
@@ -328,6 +333,7 @@
 (defun explore-map (start-room-id &optional (vehicle-type nil) (max-depth 20))
   "Explore rooms from start position and build a coordinate map.
    When vehicle-type is :air, shows sky rooms. Otherwise shows ground rooms."
+  (declare (ignorable max-depth))
   (let ((coords (make-hash-table :test #'eq))
         (visited (make-hash-table :test #'eq))
         (queue (list (list start-room-id 0 0))))

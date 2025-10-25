@@ -1,5 +1,12 @@
 (in-package :mud.player)
 
+(eval-when (:compile-toplevel :load-toplevel :execute)
+  (declaim (ftype (function (t) integer) mud.inventory:item-damage)
+           (ftype (function (t) integer) mud.inventory:item-armor)
+           (ftype (function (t) keyword) mud.inventory:item-type)
+           (ftype (function (t) keyword) mud.inventory:item-slot)
+           (ftype (function (t) string) mud.inventory:item-name)))
+
 (defclass player ()
   ((name :initarg :name :accessor player-name)
    (room :initarg :room :accessor player-room)
@@ -80,20 +87,19 @@
   (let ((base-damage 10)
         (weapon-damage 0))
     (when (player-equipped-weapon player)
-      (setf weapon-damage (mud.inventory::item-damage (player-equipped-weapon player))))
+      (setf weapon-damage (mud.inventory:item-damage (player-equipped-weapon player))))
     (+ base-damage weapon-damage)))
 
 (defun get-player-armor (player)
   "Calculate total armor rating"
   (let ((armor-rating 0))
     (when (player-equipped-armor player)
-      (setf armor-rating (mud.inventory::item-armor (player-equipped-armor player))))
+      (setf armor-rating (mud.inventory:item-armor (player-equipped-armor player))))
     armor-rating))
 
 (defun equip-item (player item)
   "Equip an item (weapon or armor). Returns (values success message)"
-  (let ((item-type (mud.inventory::item-type item))
-        (item-slot (mud.inventory::item-slot item)))
+  (let ((item-type (mud.inventory:item-type item)))
     (cond
       ((eq item-type :weapon)
        ;; Unequip current weapon if any
@@ -101,7 +107,7 @@
          (setf (player-equipped-weapon player) nil))
        ;; Equip new weapon (item stays in inventory)
        (setf (player-equipped-weapon player) item)
-       (values t (format nil "You wield ~a." (mud.inventory::item-name item))))
+       (values t (format nil "You wield ~a." (mud.inventory:item-name item))))
 
       ((eq item-type :armor)
        ;; Unequip current armor if any
@@ -109,24 +115,26 @@
          (setf (player-equipped-armor player) nil))
        ;; Equip new armor (item stays in inventory)
        (setf (player-equipped-armor player) item)
-       (values t (format nil "You wear ~a." (mud.inventory::item-name item))))
+       (values t (format nil "You wear ~a." (mud.inventory:item-name item))))
 
       (t
-       (values nil (format nil "You can't equip ~a." (mud.inventory::item-name item)))))))
+       (values nil (format nil "You can't equip ~a." (mud.inventory:item-name item)))))))
 
 (defun unequip-item (player slot)
   "Unequip an item from a slot (:weapon or :armor). Returns (values success message)"
   (cond
     ((eq slot :weapon)
      (if (player-equipped-weapon player)
-         (let ((item-name (mud.inventory::item-name (player-equipped-weapon player))))
+         (let ((item-name (mud.inventory:item-name (player-equipped-weapon player))))
+           (declare (ignorable item-name))
            (setf (player-equipped-weapon player) nil)
            (values t (format nil "You unequip ~a." item-name)))
          (values nil "You don't have a weapon equipped.")))
 
     ((eq slot :armor)
      (if (player-equipped-armor player)
-         (let ((item-name (mud.inventory::item-name (player-equipped-armor player))))
+         (let ((item-name (mud.inventory:item-name (player-equipped-armor player))))
+           (declare (ignorable item-name))
            (setf (player-equipped-armor player) nil)
            (values t (format nil "You unequip ~a." item-name)))
          (values nil "You don't have armor equipped.")))
