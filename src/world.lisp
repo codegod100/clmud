@@ -325,8 +325,9 @@
     (:downstream '(0 1))
     (t '(0 0))))
 
-(defun explore-map (start-room-id &optional (max-depth 20))
-  "Explore rooms from start position and build a coordinate map, excluding sky/air rooms"
+(defun explore-map (start-room-id &optional (vehicle-type nil) (max-depth 20))
+  "Explore rooms from start position and build a coordinate map.
+   When vehicle-type is :air, shows sky rooms. Otherwise shows ground rooms."
   (let ((coords (make-hash-table :test #'eq))
         (visited (make-hash-table :test #'eq))
         (queue (list (list start-room-id 0 0))))
@@ -352,14 +353,18 @@
                    (new-x (+ x (first delta)))
                    (new-y (+ y (second delta))))
 
-              ;; Skip air/sky rooms and up/down connections for ground-level map
-              (unless (or (gethash dest-id visited)
-                         (member dir '(:up :down))
-                         (and (symbolp dest-id)
-                              (search "SKY" (symbol-name dest-id))))
-                (setf (gethash dest-id visited) t)
-                (setf (gethash dest-id coords) (list new-x new-y))
-                (push (list dest-id new-x new-y) queue)))))))
+              ;; For air vehicles, show sky rooms. For ground, show ground rooms.
+              (let ((is-sky-room (and (symbolp dest-id)
+                                      (search "SKY" (symbol-name dest-id)))))
+                (unless (or (gethash dest-id visited)
+                           (member dir '(:up :down))
+                           ;; Skip sky rooms when on ground, skip ground rooms when in air
+                           (if (eq vehicle-type :air)
+                               (not is-sky-room)
+                               is-sky-room))
+                  (setf (gethash dest-id visited) t)
+                  (setf (gethash dest-id coords) (list new-x new-y))
+                  (push (list dest-id new-x new-y) queue))))))))
     coords))
 
 (defun get-map-bounds (coords)
@@ -393,81 +398,94 @@
             ((string= name "Hidden Cove") "Cove")
             ((string= name "Graveyard") "Grave")
             ((string= name "Village Garden") "Garden")
+            ;; Sky rooms
+            ((string= name "Sky Above the Village") "SkyVill")
+            ((string= name "Sky Above the Whispering Wood") "SkyWood")
+            ((string= name "Sky Above the Market") "SkyMrkt")
+            ((string= name "Sky Above the River") "SkyRivr")
+            ((string= name "Sky Above the Graveyard") "SkyGrvy")
             ;; Default: take first word or first 7 chars
             (t (let ((first-word (subseq name 0 (or (position #\Space name) (length name)))))
                  (subseq first-word 0 (min 7 (length first-word)))))))
         "???")))
 
-(declaim (ftype (function (t) (values hash-table string)) generate-map))
+(defun generate-map (current-room-id &optional (vehicle-type nil))
+  "Render an ASCII map centred on CURRENT-ROOM-ID. When VEHICLE-TYPE is :air,
+   only sky rooms are shown; otherwise ground-level rooms are displayed."
+  (let ((coords (or (explore-map current-room-id vehicle-type)
+                    (make-hash-table :test #'eq))))
+    (if (zerop (hash-table-count coords))
+        ""
+        (destructuring-bind (min-x max-x min-y max-y) (get-map-bounds coords)
+          (let* ((width (* (+ (- max-x min-x) 1) 2))
+                 (height (* (+ (- max-y min-y) 1) 2))
+                 (grid (make-array (list height width) :initial-element nil)))
 
-(defun generate-map (current-room-id)
-  "Dynamically generate an ASCII map of the world with the player's current location marked"
-  (let* ((coords (explore-map current-room-id))
-         (bounds (get-map-bounds coords))
-         (min-x (first bounds))
-         (max-x (second bounds))
-         (min-y (third bounds))
-         (max-y (fourth bounds))
-         (width (* (+ (- max-x min-x) 1) 2))   ; double width for connections
-         (height (* (+ (- max-y min-y) 1) 2))  ; double height for connections
-         (grid (make-array (list height width) :initial-element nil)))
+            ;; Place each discovered room on the grid.
+            (loop for room-id being the hash-keys of coords
+                  using (hash-value pos) do
+                  (let ((x (* (- (first pos) min-x) 2))
+                        (y (* (- (second pos) min-y) 2)))
+                    (setf (aref grid y x) room-id)))
 
-    ;; Place rooms on grid (at even coordinates)
-    (maphash (lambda (room-id pos)
-               (let ((x (* (- (first pos) min-x) 2))
-                     (y (* (- (second pos) min-y) 2)))
-                 (setf (aref grid y x) room-id)))
-             coords)
-
-    ;; Add connections between adjacent rooms
-    (maphash (lambda (room-id pos)
-               (let* ((x (* (- (first pos) min-x) 2))
-                      (y (* (- (second pos) min-y) 2))
-                      (room (find-room room-id)))
-                 (when room
-                   (dolist (exit (room-exits room))
-                     (let* ((dir (first exit))
-                            (rest-of-exit (cdr exit))
-                            (dest-id (if (and (consp rest-of-exit) (keywordp (car rest-of-exit)))
-                                         (cdr rest-of-exit)
-                                         rest-of-exit)))
-                       ;; Only draw connections to rooms we're showing
-                       (when (and (gethash dest-id coords)
-                                  (not (member dir '(:up :down))))
-                         (let ((delta (direction-delta dir)))
-                           (unless (equal delta '(0 0))
-                             (let ((conn-x (+ x (first delta)))
+            ;; Draw connectors so navigation routes are visible.
+            (loop for room-id being the hash-keys of coords
+                  using (hash-value pos) do
+                  (let* ((x (* (- (first pos) min-x) 2))
+                         (y (* (- (second pos) min-y) 2))
+                         (room (find-room room-id)))
+                    (when room
+                      (dolist (exit (room-exits room))
+                        (let* ((dir (first exit))
+                               (rest (cdr exit))
+                               (dest-id (if (and (consp rest) (keywordp (car rest)))
+                                            (cdr rest)
+                                            rest)))
+                          (when (and (gethash dest-id coords)
+                                     (not (member dir '(:up :down))))
+                            (let* ((delta (direction-delta dir))
+                                   (conn-x (+ x (first delta)))
                                    (conn-y (+ y (second delta))))
-                               (when (and (>= conn-x 0) (< conn-x width)
-                                          (>= conn-y 0) (< conn-y height))
-                                 (setf (aref grid conn-y conn-x) :connection)))))))))))
-             coords)
+                              (when (and (not (equal delta '(0 0)))
+                                         (<= 0 conn-x) (< conn-x width)
+                                         (<= 0 conn-y) (< conn-y height))
+                                (setf (aref grid conn-y conn-x)
+                                      (case dir
+                                        ((:north :south) :conn-vertical)
+                                        ((:east :west) :conn-horizontal)
+                                        ((:northeast :southwest) :conn-ne-sw)
+                                        ((:northwest :southeast) :conn-nw-se)
+                                        (t :conn-unknown))))))))))
 
-    ;; Build and return map string along with the coordinate hash
-    (let ((lines '()))
-      (loop for y from 0 below height do
-        (push
-          (with-output-to-string (line)
-            (loop for x from 0 below width do
-              (let ((cell (aref grid y x)))
-                (cond
-                  ((eq cell :connection)
-                   (format line "---"))
-                  ((and (symbolp cell) (find-room cell))
-                   (let ((abbrev (abbreviate-room-name cell))
-                         (is-current (eq cell current-room-id)))
-                     (format line "[~7a~a]"
-                             abbrev
-                             (if is-current "*" " "))))
-                  (t (format line "   "))))))
-          lines))
-      (setf lines (nreverse lines))
-      (values
-        coords
-        (with-output-to-string (s)
-          (format s "~%")
-          (dolist (line lines)
-            (write-string line s)
-            (format s "~%"))
-          (format s "~%* = Your location~%")))))
-)
+            ;; Compute dynamic column widths so room names stay aligned.
+            (let ((col-widths (make-array width :initial-element 3)))
+              (loop for x from 0 below width do
+                (loop for y from 0 below height do
+                  (let* ((cell (aref grid y x))
+                         (room (and (symbolp cell) (find-room cell))))
+                    (when room
+                      (let ((cell-width (+ (length (room-name room)) 3)))
+                        (setf (aref col-widths x)
+                              (max (aref col-widths x) cell-width)))))))
+
+              (let ((rendered
+                     (with-output-to-string (s)
+                       (format s "~%")
+                       (loop for y from 0 below height do
+                         (loop for x from 0 below width do
+                           (let* ((cell (aref grid y x))
+                                  (room (and (symbolp cell) (find-room cell)))
+                                  (text (cond
+                                          ((eq cell :conn-horizontal) "---")
+                                          ((eq cell :conn-vertical) " | ")
+                                          ((eq cell :conn-ne-sw) " / ")
+                                          ((eq cell :conn-nw-se) " \\ ")
+                                          (room
+                                           (format nil "[~a~a]"
+                                                   (room-name room)
+                                                   (if (eq cell current-room-id) "*" " ")))
+                                          (t ""))))
+                             (format s "~v<~a~>" (aref col-widths x) text)))
+                         (format s "~%"))
+                       (format s "~%* = Your location~%"))))
+                (return-from generate-map rendered)))))))))

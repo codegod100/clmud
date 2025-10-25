@@ -5,19 +5,20 @@
     (setf *default-pathname-defaults*
           (make-pathname :directory dir :defaults script))))
 
-(require :sb-bsd-sockets)
+(eval-when (:compile-toplevel :load-toplevel :execute)
+  ;; Load SBCL contribs needed by the server before package definitions run.
+  (require :sb-bsd-sockets))
 
-;; Suppress compiler warnings but allow errors to show
-(handler-bind ((warning #'muffle-warning))
-  (load "src/packages.lisp")
-  (load "src/ansi.lisp")
-  (load "src/world.lisp")
-  (load "src/player.lisp")
-  (load "src/inventory.lisp")
-  (load "src/combat.lisp")
-  (load "src/quest.lisp")
-  (load "src/mob.lisp")
-  (load "src/server.lisp"))
+(load "src/packages.lisp")
+
+(load "src/ansi.lisp")
+(load "src/player.lisp")
+(load "src/inventory.lisp")
+(load "src/world.lisp")
+(load "src/mob.lisp")
+(load "src/combat.lisp")
+(load "src/quest.lisp")
+(load "src/server.lisp.reformatted")
 
 (defun string-prefix-p (prefix string)
   (and (<= (length prefix) (length string))
@@ -60,9 +61,8 @@
         (format *error-output* "~&Failed to start server on port ~a: ~a~%" port err)
         (finish-output *error-output*)
         (sb-ext:exit :code 1)))
-    (format t "~&~a~%"
-            (mud.ansi:wrap (format nil "MUD listening on port ~a. Press Ctrl+C to stop." port)
-                           :bright-magenta))
+  (format t "~&~a~%" (mud.ansi:wrap (format nil "MUD listening on port ~a. Press Ctrl+C to stop." port)
+                    :bright-magenta))
     (finish-output)
     (handler-case
         (mud.server:await)
@@ -75,9 +75,9 @@
         (finish-output *error-output*)
         (mud.server:stop)
         (sb-ext:exit :code 1)))
-    (mud.server:stop)
-    (format t "~&~a~%" (mud.ansi:wrap "Server stopped." :bright-black))
-    (finish-output)
-    (sb-ext:exit :code 0)))
+  (mud.server:stop)
+  (format t "~&~a~%" (mud.ansi:wrap "Server stopped." :bright-black))
+  (finish-output)
+  (sb-ext:exit :code 0)))
 
 (main)
