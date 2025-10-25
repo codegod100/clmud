@@ -1,0 +1,11 @@
+
+[Grave   ]   [Tavern  ]               
+   ------               
+[Market  ]---[Village*]---[Lane    ]---[Forest  ]   
+---   ---               
+[River   ]   [Garden  ]               
+---                     
+[Cove    ]                     
+                        
+
+* = Your location

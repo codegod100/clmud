@@ -58,6 +58,38 @@ Finds top-level forms that don't properly close (should return to depth 1).
 python3 tools/find-unbalanced.py src/server.lisp
 ```
 
+### paren-fix.lisp
+SBCL script that both reports imbalance data and optionally rewrites files to balance raw parentheses. The fixer is purely lexical, so it looks only at literal `(` and `)` characters; it does not attempt to understand comments or reader macros.
+
+**Usage:**
+```bash
+# Inspect a file
+sbcl --script tools/paren-fix.lisp check src/server.lisp
+
+# Write a balanced copy
+sbcl --script tools/paren-fix.lisp fix src/server.lisp /tmp/server-fixed.lisp
+
+# Balance in place (overwrites!)
+sbcl --script tools/paren-fix.lisp fix src/server.lisp --in-place
+```
+
+**Output:**
+```
+File: src/server.lisp
+  Opens:   15823
+  Closes:  15820
+  Status: UNBALANCED (diff 3)
+  Missing closing parens: 3
+  Extra closing parens at:
+    line 142, column 7
+```
+
+**Auto-fix details:**
+- Removes unmatched closing parens (keeps a log of line/column locations).
+- Appends the minimum number of closing parens to reach depth zero.
+- Leaves already-balanced files untouched.
+- Works best on structural code edits; if literal parens appear inside strings, double-check the result.
+
 ## S-Expression Editing Tools
 
 ### sexp-edit.lisp

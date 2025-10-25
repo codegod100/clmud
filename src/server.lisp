@@ -285,8 +285,19 @@
          (room (find-room room-id)))
     (if room
         (let ((stream (player-stream player)))
-          ;; Show map first
-          (write-crlf stream (wrap (generate-map (player-room player)) :bright-cyan))
+          ;; Show map first (convert LF to CRLF while keeping ANSI coloring)
+          (multiple-value-bind (coords map-text) (generate-map (player-room player))
+            (declare (ignore coords))
+            (let* ((colored (wrap map-text :bright-cyan))
+                   (converted (with-output-to-string (out)
+                                (loop for ch across colored do
+                                  (if (char= ch #\Newline)
+                                      (progn
+                                        (write-char #\Return out)
+                                        (write-char #\Linefeed out))
+                                      (write-char ch out))))))
+              (write-string converted stream)
+              (finish-output stream)))
           (write-crlf stream (wrap (format nil "~a" (room-name room)) :bold :bright-cyan))
           (write-crlf stream (colorize-facets (room-description room)))
           (write-crlf stream "")

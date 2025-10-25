@@ -1,0 +1,39 @@
+Unhandled SB-C::INPUT-ERROR-IN-LOAD in thread #<THREAD tid=1304545 "main thread" RUNNING
+                                                 {1200030003}>:
+  READ error during LOAD:
+
+    end of file on #<SB-INT:FORM-TRACKING-STREAM for "file /home/nandi/proj/clmud/src/server.lisp" {1200D470C3}>
+
+    (in form starting at line: 987, column: 0, position: 48551)
+
+Backtrace for: #<THREAD tid=1304545 "main thread" RUNNING {1200030003}>
+0: (SB-DEBUG::DEBUGGER-DISABLED-HOOK #<SB-C::INPUT-ERROR-IN-LOAD {120336FFB3}> #<unused argument> :QUIT T)
+1: (SB-DEBUG::RUN-HOOK SB-EXT:*INVOKE-DEBUGGER-HOOK* #<SB-C::INPUT-ERROR-IN-LOAD {120336FFB3}>)
+2: (INVOKE-DEBUGGER #<SB-C::INPUT-ERROR-IN-LOAD {120336FFB3}>)
+3: (ERROR #<SB-C::INPUT-ERROR-IN-LOAD {120336FFB3}>)
+4: (SB-C:COMPILER-ERROR SB-C::INPUT-ERROR-IN-LOAD :CONDITION #<END-OF-FILE {120336FF93}> :POSITION 48551 :LINE/COL (987 . 0) :STREAM #<SB-INT:FORM-TRACKING-STREAM for "file /home/nandi/proj/clmud/src/server.lisp" {1200D470C3}>)
+5: (SB-C::%DO-FORMS-FROM-INFO #<FUNCTION (LAMBDA (SB-KERNEL:FORM &KEY :CURRENT-INDEX &ALLOW-OTHER-KEYS) :IN SB-INT:LOAD-AS-SOURCE) {742F639AE9BB}> #<SB-C::SOURCE-INFO {1200D0D993}> SB-C::INPUT-ERROR-IN-LOAD)
+6: (SB-INT:LOAD-AS-SOURCE #<SB-INT:FORM-TRACKING-STREAM for "file /home/nandi/proj/clmud/src/server.lisp" {1200D470C3}> :VERBOSE NIL :PRINT NIL :CONTEXT "loading")
+7: ((LABELS SB-FASL::LOAD-STREAM-1 :IN LOAD) #<SB-INT:FORM-TRACKING-STREAM for "file /home/nandi/proj/clmud/src/server.lisp" {1200D470C3}> NIL)
+8: (SB-FASL::CALL-WITH-LOAD-BINDINGS #<FUNCTION (LABELS SB-FASL::LOAD-STREAM-1 :IN LOAD) {742F639AED7B}> #<SB-INT:FORM-TRACKING-STREAM for "file /home/nandi/proj/clmud/src/server.lisp" {1200D470C3}> NIL #<SB-INT:FORM-TRACKING-STREAM for "file /home/nandi/proj/clmud/src/server.lisp" {1200D470C3}>)
+9: (LOAD "src/server.lisp" :VERBOSE NIL :PRINT NIL :IF-DOES-NOT-EXIST :ERROR :EXTERNAL-FORMAT :DEFAULT)
+10: ((LAMBDA NIL :IN "/home/nandi/proj/clmud/mud.lisp"))
+11: (SB-INT:SIMPLE-EVAL-IN-LEXENV (HANDLER-BIND ((WARNING (FUNCTION MUFFLE-WARNING))) (LOAD "src/packages.lisp") (LOAD "src/ansi.lisp") (LOAD "src/world.lisp") (LOAD "src/player.lisp") (LOAD "src/inventory.lisp") (LOAD "src/combat.lisp") (LOAD "src/quest.lisp") (LOAD "src/mob.lisp") (LOAD "src/server.lisp")) #<NULL-LEXENV>)
+12: (SB-EXT:EVAL-TLF (HANDLER-BIND ((WARNING (FUNCTION MUFFLE-WARNING))) (LOAD "src/packages.lisp") (LOAD "src/ansi.lisp") (LOAD "src/world.lisp") (LOAD "src/player.lisp") (LOAD "src/inventory.lisp") (LOAD "src/combat.lisp") (LOAD "src/quest.lisp") (LOAD "src/mob.lisp") (LOAD "src/server.lisp")) 2 NIL)
+13: ((LABELS SB-FASL::EVAL-FORM :IN SB-INT:LOAD-AS-SOURCE) (HANDLER-BIND ((WARNING (FUNCTION MUFFLE-WARNING))) (LOAD "src/packages.lisp") (LOAD "src/ansi.lisp") (LOAD "src/world.lisp") (LOAD "src/player.lisp") (LOAD "src/inventory.lisp") (LOAD "src/combat.lisp") (LOAD "src/quest.lisp") (LOAD "src/mob.lisp") (LOAD "src/server.lisp")) 2)
+14: ((LAMBDA (SB-KERNEL:FORM &KEY :CURRENT-INDEX &ALLOW-OTHER-KEYS) :IN SB-INT:LOAD-AS-SOURCE) (HANDLER-BIND ((WARNING (FUNCTION MUFFLE-WARNING))) (LOAD "src/packages.lisp") (LOAD "src/ansi.lisp") (LOAD "src/world.lisp") (LOAD "src/player.lisp") (LOAD "src/inventory.lisp") (LOAD "src/combat.lisp") (LOAD "src/quest.lisp") (LOAD "src/mob.lisp") (LOAD "src/server.lisp")) :CURRENT-INDEX 2)
+15: (SB-C::%DO-FORMS-FROM-INFO #<FUNCTION (LAMBDA (SB-KERNEL:FORM &KEY :CURRENT-INDEX &ALLOW-OTHER-KEYS) :IN SB-INT:LOAD-AS-SOURCE) {742F639AF3DB}> #<SB-C::SOURCE-INFO {1200C145C3}> SB-C::INPUT-ERROR-IN-LOAD)
+16: (SB-INT:LOAD-AS-SOURCE #<SB-SYS:FD-STREAM for "file /home/nandi/proj/clmud/mud.lisp" {1200034443}> :VERBOSE NIL :PRINT NIL :CONTEXT "loading")
+17: ((LABELS SB-FASL::LOAD-STREAM-1 :IN LOAD) #<SB-SYS:FD-STREAM for "file /home/nandi/proj/clmud/mud.lisp" {1200034443}> NIL)
+18: (SB-FASL::CALL-WITH-LOAD-BINDINGS #<FUNCTION (LABELS SB-FASL::LOAD-STREAM-1 :IN LOAD) {742F639AF79B}> #<SB-SYS:FD-STREAM for "file /home/nandi/proj/clmud/mud.lisp" {1200034443}> NIL #<SB-SYS:FD-STREAM for "file /home/nandi/proj/clmud/mud.lisp" {1200034443}>)
+19: (LOAD #<SB-SYS:FD-STREAM for "file /home/nandi/proj/clmud/mud.lisp" {1200034443}> :VERBOSE NIL :PRINT NIL :IF-DOES-NOT-EXIST :ERROR :EXTERNAL-FORMAT :DEFAULT)
+20: ((FLET SB-IMPL::LOAD-SCRIPT :IN SB-IMPL::PROCESS-SCRIPT) #<SB-SYS:FD-STREAM for "file /home/nandi/proj/clmud/mud.lisp" {1200034443}>)
+21: ((FLET SB-UNIX::BODY :IN SB-IMPL::PROCESS-SCRIPT))
+22: ((FLET "WITHOUT-INTERRUPTS-BODY-" :IN SB-IMPL::PROCESS-SCRIPT))
+23: (SB-IMPL::PROCESS-SCRIPT "mud.lisp")
+24: (SB-IMPL::TOPLEVEL-INIT)
+25: ((FLET SB-UNIX::BODY :IN SB-IMPL::START-LISP))
+26: ((FLET "WITHOUT-INTERRUPTS-BODY-3" :IN SB-IMPL::START-LISP))
+27: (SB-IMPL::%START-LISP)
+
+unhandled condition in --disable-debugger mode, quitting
