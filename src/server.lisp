@@ -333,8 +333,8 @@
                                  ;; Other typed exits - show when vehicle matches
                                  (t
                                   (and vehicle-type (eq vehicle-type exit-type)))))
-                             ;; Simple exit - show if not in vehicle OR in uber vehicle
-                             (or (null vehicle-type) (eq vehicle-type :uber)))))
+                             ;; Simple exit - show if not in vehicle OR in uber/air vehicle
+                             (or (null vehicle-type) (eq vehicle-type :uber) (eq vehicle-type :air)))))
                      all-exits))
                  (exit-names (mapcar (lambda (pair) (string-upcase (symbol-name (car pair))))
                                    available-exits)))

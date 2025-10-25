@@ -46,6 +46,7 @@
   (define-vehicle "eternal wanderer" :water "A small wooden boat that glides across water on its own." :damage 5 :speed 2)
   (define-vehicle "car" :uber "A sleek, magical carriage that can take you anywhere instantly." :damage 30 :speed 10)
   (define-vehicle "carriage" :uber "A sleek, magical carriage that can take you anywhere instantly." :damage 30 :speed 10)
+  (define-vehicle "ufo" :air "A shimmering disc of otherworldly metal that defies gravity. It hums with cosmic energy." :damage 50 :speed 20)
 
   (define-room 'village-square
                "Village Square"
@@ -54,7 +55,8 @@
                  (:east . moonlit-lane)
                  (:south :pedestrian . village-garden)
                  (:west . market-stalls)
-                 (:northwest . graveyard))
+                 (:northwest . graveyard)
+                 (:up :air . sky-over-village))
                '(("ancient oak" . "The massive oak has stood here for centuries. Carved into its trunk are names of heroes long past, and a small hollow near the base seems to hide something...")
                  ("lanterns" . "The lanterns are wrought iron, their flames never seeming to dim. They were said to be blessed by an ancient mage to guide lost travelers.")))
   (define-room 'tavern-common-room
@@ -73,27 +75,31 @@
                "Moonlit Lane"
                "A narrow lane stretches eastward, flanked by [ivy-clad cottages]. Fireflies dance in the night air, drawing the eye toward the shadowed [forest archway]."
                '((:west . village-square)
-                 (:east . whispering-wood))
+                 (:east . whispering-wood)
+                 (:up :air . sky-over-village))
                '(("ivy-clad cottages" . "The cottages are ancient, their windows dark. The ivy seems to move slightly, as if breathing...")
                  ("forest archway" . "Two twisted trees form a natural archway leading into the Whispering Wood. Strange runes are carved into their bark.")))
   (define-room 'whispering-wood
                "Whispering Wood"
                "Towering pines murmur secrets overhead, their needles shimmering with dew. Somewhere deeper within, an [owl] hoots, beckoning the brave. A [standing stone] covered in moss rises from the forest floor."
-               '((:west . moonlit-lane))
+               '((:west . moonlit-lane)
+                 (:up :air . sky-over-forest))
                '(("owl" . "The owl watches you with knowing eyes. It seems to be guarding something in the deeper woods...")
                  ("standing stone" . "Ancient runes cover the stone. You can barely make out the words: 'Only the worthy may pass beyond...'")))
   (define-room 'market-stalls
                "Closing Market"
                "Canopies ripple in the breeze as merchants shutter their stalls. The lingering aroma of [roasted chestnuts] and fresh parchment fills the air. A [notice board] displays various announcements."
                '((:east . village-square)
-                 (:south . riverbank))
+                 (:south . riverbank)
+                 (:up :air . sky-over-market))
                '(("roasted chestnuts" . "The warm chestnuts are a local specialty. The vendor mentions that the recipe is a closely guarded secret passed down for generations.")
                  ("notice board" . "Several notices are pinned here: 'WANTED: Brave souls to investigate disappearances in Whispering Wood. Reward offered.' Another reads: 'Lost: Family heirloom ring, last seen near the riverbank.'")))
   (define-room 'riverbank
                "Riverbank"
                "Moonlight paints the [river] in silver ribbons. A wooden skiff knocks gently against the pier, ready for anyone bold enough to cast off."
                '((:north . market-stalls)
-                 (:downstream :water . hidden-cove))
+                 (:downstream :water . hidden-cove)
+                 (:up :air . sky-over-river))
                '(("river" . "The water flows swiftly, its depths dark and mysterious. You think you see something glinting on the riverbed...")))
   (define-room 'hidden-cove
                "Hidden Cove"
@@ -104,7 +110,8 @@
   (define-room 'graveyard
                "Graveyard"
                "Ancient [tombstones] lean in the mist, their inscriptions worn by time. The air is still, heavy with the weight of countless souls who have passed through this veil. A faint [ethereal glow] marks the boundary between life and death."
-               '((:southeast . village-square))
+               '((:southeast . village-square)
+                 (:up :air . sky-over-graveyard))
                '(("tombstones" . "Most inscriptions are illegible, but one reads: 'Here lies the Keeper of Secrets. Death is not the end, merely a door.' Fresh flowers rest at its base, though no one living has been seen placing them.")
                  ("ethereal glow" . "The glow pulses gently, like a heartbeat. Those who have died and returned speak of a presence here - neither malevolent nor kind, simply... waiting.")))
 
@@ -114,6 +121,54 @@
                '((:north :pedestrian . village-square))
                '(("herbs" . "Lavender, rosemary, and thyme fill the air with their sweet scent. The elder uses these in healing remedies.")
                  ("apple tree" . "An ancient apple tree, its gnarled branches reaching skyward. The apples look delicious and perfectly ripe.")))
+
+  ;; Sky rooms - aerial views
+  (define-room 'sky-over-village
+               "Sky Above the Village"
+               "You soar high above the village, the UFO humming beneath you. Below, the [village square] is a small cobblestone circle, the [tavern] a warm glow, and the [market] a cluster of colorful canopies. To the east, dark [woods] stretch like a shadowy blanket. To the northwest, the [graveyard] glows with ethereal light."
+               '((:down :air . village-square)
+                 (:east . sky-over-forest)
+                 (:west . sky-over-market)
+                 (:northwest . sky-over-graveyard))
+               '(("village square" . "From up here, you can see the ancient oak tree in the center, its branches spreading like welcoming arms. Tiny figures move through the square like ants.")
+                 ("tavern" . "The Bronze Badger's chimney puffs smoke into the evening air. You can almost smell the spiced cider from here.")
+                 ("market" . "The market stalls look like a patchwork quilt from this height, merchants closing up for the night.")
+                 ("woods" . "The Whispering Wood is a sea of pine trees, their tops swaying in unison. Something ancient dwells there.")
+                 ("graveyard" . "The graveyard is veiled in mist even from this height, its ethereal glow pulsing like a beacon in the darkness.")))
+
+  (define-room 'sky-over-forest
+               "Sky Above the Whispering Wood"
+               "The UFO glides silently over the vast expanse of the [Whispering Wood]. The pine canopy below ripples like dark green waves. You can see a [clearing] and what looks like a [standing stone] poking through the trees. To the west, the village lights twinkle."
+               '((:down :air . whispering-wood)
+                 (:west . sky-over-village))
+               '(("whispering wood" . "The forest stretches endlessly, ancient and mysterious. Even from above, you feel its secretive nature.")
+                 ("clearing" . "A small clearing in the forest where moonlight breaks through. You glimpse movement - perhaps the wolf or goblin you've heard about.")
+                 ("standing stone" . "The ancient stone juts up through the canopy, covered in glowing runes that pulse even from this height.")))
+
+  (define-room 'sky-over-market
+               "Sky Above the Market"
+               "You hover above the [market district], watching the last merchants pack their wares. The [riverbank] glitters to the south where moonlight dances on water. The village square lies to the east, and beyond it, darkness."
+               '((:down :air . market-stalls)
+                 (:east . sky-over-village)
+                 (:south . sky-over-river))
+               '(("market district" . "The market is a maze of stalls and canopies from above. You can see the notice board and smell the faint aroma of roasted chestnuts.")
+                 ("riverbank" . "The river winds like a silver serpent through the land, reflecting moonlight. A small dock juts out with something moored to it.")))
+
+  (define-room 'sky-over-river
+               "Sky Above the River"
+               "The UFO drifts above the winding [river], its waters shimmering below. You can trace its path downstream to a [hidden cove] surrounded by sheer cliffs. To the north, the market district is visible."
+               '((:down :air . riverbank)
+                 (:north . sky-over-market))
+               '(("river" . "The river flows peacefully below, its surface mirror-smooth except where it churns around rocks.")
+                 ("hidden cove" . "A secluded cove nestled between towering cliffs. From here, you can see ancient ruins carved into the cliff face, glowing faintly.")))
+
+  (define-room 'sky-over-graveyard
+               "Sky Above the Graveyard"
+               "The UFO hovers silently above the ancient [graveyard]. From this height, the tombstones look like scattered bones, and the [ethereal mist] glows eerily in the moonlight. To the southeast, the village square is visible."
+               '((:down :air . graveyard)
+                 (:southeast . sky-over-village))
+               '(("graveyard" . "The graveyard is shrouded in perpetual mist, even from above. The ethereal glow pulses rhythmically, like a heartbeat visible from the heavens.")
+                 ("ethereal mist" . "The mist swirls in patterns that seem almost deliberate, forming shapes that vanish when you try to focus on them.")))
 
   ;; Create and place vehicle items in rooms
   (let ((car-item (mud.inventory::make-item
@@ -128,12 +183,19 @@
                      :vehicle-type :water
                      :portable nil
                      :description "A small wooden boat called 'Eternal Wanderer'. You can enter it to navigate water passages."))
+        (ufo-item (mud.inventory::make-item
+                   :name "ufo"
+                   :type :vehicle
+                   :vehicle-type :air
+                   :portable nil
+                   :description "A gleaming silver disc that hovers silently above the ground, pulsing with otherworldly energy. Strange symbols glow along its edge."))
         (apple-item (mud.inventory::make-item
                      :name "apple"
                      :type :consumable
                      :description "A perfectly ripe red apple from the village garden. It looks delicious!")))
     (add-item-to-room 'village-square car-item)
     (add-item-to-room 'riverbank skiff-item)
+    (add-item-to-room 'graveyard ufo-item)
     (add-item-to-room 'village-garden apple-item)))
 
 (defun find-room (room-id)
@@ -169,13 +231,17 @@
                 ((eq exit-type :water)
                  (when (and vehicle-type (eq vehicle-type :water))
                    (cdr rest-of-entry)))
+                ;; Air/sky exits - only accessible with air vehicles
+                ((eq exit-type :air)
+                 (when (and vehicle-type (eq vehicle-type :air))
+                   (cdr rest-of-entry)))
                 ;; Other typed exits - vehicle must match
                 (t
                  (when (and vehicle-type (eq vehicle-type exit-type))
                    (cdr rest-of-entry)))))
             ;; Simple exit (format: (:direction . room))
-            ;; Accessible when not in a vehicle OR in an uber vehicle
-            (when (or (null vehicle-type) (eq vehicle-type :uber))
+            ;; Accessible when not in a vehicle OR in an uber/air vehicle
+            (when (or (null vehicle-type) (eq vehicle-type :uber) (eq vehicle-type :air))
               rest-of-entry))))))
 
 (defun add-item-to-room (room-id item)
