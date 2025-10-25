@@ -40,7 +40,7 @@
            :*item-templates* :find-item-template :create-item :use-item
            :add-to-inventory :remove-from-inventory :find-in-inventory
            :list-inventory :drop-item :grab-item :item-type :item-vehicle-type
-           :item-damage :item-armor :item-slot))
+           :item-damage :item-armor :item-slot :item-portable))
 
 (defpackage :mud.combat
   (:use :cl)
@@ -64,7 +64,7 @@
                             :get-player-stats :respawn-player :*spells* :loot-corpse :handle-player-death)
   (:import-from :mud.inventory :create-item :use-item :add-to-inventory :remove-from-inventory
                                :find-in-inventory :list-inventory :item-name :drop-item :grab-item :item-type
-                               :item-damage :item-armor)
+                               :item-damage :item-armor :item-portable)
   (:import-from :mud.quest :start-quest :check-quest-completion :get-active-quests :initialize-quests
                            :quest-name :quest-description :quest-reward-xp :quest-reward-text)
   (:import-from :mud.mob :get-mobs-in-room :find-mob-in-room :remove-mob-from-room

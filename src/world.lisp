@@ -50,9 +50,9 @@
   (define-room 'village-square
                "Village Square"
                "Cobblestone paths converge beneath an [ancient oak], its leaves whispering tales of heroes past. [Lanterns] sway gently, casting golden halos in the dusk."
-               '((:north . tavern-common-room)
+               '((:north :pedestrian . tavern-common-room)
                  (:east . moonlit-lane)
-                 (:south . village-garden)
+                 (:south :pedestrian . village-garden)
                  (:west . market-stalls)
                  (:northwest . graveyard))
                '(("ancient oak" . "The massive oak has stood here for centuries. Carved into its trunk are names of heroes long past, and a small hollow near the base seems to hide something...")
@@ -60,14 +60,14 @@
   (define-room 'tavern-common-room
                "The Bronze Badger"
                "Warm lamplight spills over polished oak tables, while the scent of spiced cider mingles with distant lute music. A crackling [hearth] invites weary travelers. Behind the bar, a [weathered map] hangs on the wall."
-               '((:south . village-square)
-                 (:up . tavern-loft))
+               '((:south :pedestrian . village-square)
+                 (:up :pedestrian . tavern-loft))
                '(("hearth" . "The stone hearth crackles with eternal flame. Local legend says it was lit by the first settlers and has never gone out.")
                  ("weathered map" . "The map shows the surrounding lands, with several locations marked with red X's. One appears to be deep in the Whispering Wood...")))
   (define-room 'tavern-loft
                "Tavern Loft"
                "Low beams and soft straw mattresses offer respite. A narrow [window] reveals the silver glow of the moonlit treeline beyond the village walls."
-               '((:down . tavern-common-room))
+               '((:down :pedestrian . tavern-common-room))
                '(("window" . "Through the dusty glass, you can see the distant forest. Something occasionally glimmers between the trees...")))
   (define-room 'moonlit-lane
                "Moonlit Lane"
@@ -111,7 +111,7 @@
   (define-room 'village-garden
                "Village Garden"
                "A small, peaceful garden bursting with life. Rows of vegetables grow alongside fragrant [herbs], and a magnificent [apple tree] stands in the center, its branches heavy with ripe red fruit. The village elder tends to this garden with great care."
-               '((:north . village-square))
+               '((:north :pedestrian . village-square))
                '(("herbs" . "Lavender, rosemary, and thyme fill the air with their sweet scent. The elder uses these in healing remedies.")
                  ("apple tree" . "An ancient apple tree, its gnarled branches reaching skyward. The apples look delicious and perfectly ripe.")))
 
@@ -120,11 +120,13 @@
                    :name "car"
                    :type :vehicle
                    :vehicle-type :uber
+                   :portable nil
                    :description "A sleek, magical carriage that shimmers with arcane energy. You can enter it to travel anywhere instantly."))
         (skiff-item (mud.inventory::make-item
                      :name "skiff"
                      :type :vehicle
                      :vehicle-type :water
+                     :portable nil
                      :description "A small wooden boat called 'Eternal Wanderer'. You can enter it to navigate water passages."))
         (apple-item (mud.inventory::make-item
                      :name "apple"
@@ -156,9 +158,21 @@
         ;; Check if this is a typed exit (format: (:direction :type . room))
         ;; A typed exit will have a keyword as the first element of the cdr
         (if (and (consp rest-of-entry) (keywordp (car rest-of-entry)))
-            ;; Typed exit - check if vehicle matches
-            (when (and vehicle-type (eq vehicle-type (car rest-of-entry)))
-              (cdr rest-of-entry))
+            ;; Typed exit - check exit type
+            (let ((exit-type (car rest-of-entry)))
+              (cond
+                ;; Pedestrian/indoor exits - only accessible on foot (no vehicle)
+                ((eq exit-type :pedestrian)
+                 (when (null vehicle-type)
+                   (cdr rest-of-entry)))
+                ;; Water exits - only accessible with water vehicles
+                ((eq exit-type :water)
+                 (when (and vehicle-type (eq vehicle-type :water))
+                   (cdr rest-of-entry)))
+                ;; Other typed exits - vehicle must match
+                (t
+                 (when (and vehicle-type (eq vehicle-type exit-type))
+                   (cdr rest-of-entry)))))
             ;; Simple exit (format: (:direction . room))
             ;; Accessible when not in a vehicle OR in an uber vehicle
             (when (or (null vehicle-type) (eq vehicle-type :uber))

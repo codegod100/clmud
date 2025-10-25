@@ -321,8 +321,18 @@
                              (rest-of-entry (cdr exit-entry)))
                          ;; Check if this is a typed exit
                          (if (and (consp rest-of-entry) (keywordp (car rest-of-entry)))
-                             ;; Typed exit - only show if we have matching vehicle
-                             (and vehicle-type (eq vehicle-type (car rest-of-entry)))
+                             ;; Typed exit - check the type
+                             (let ((exit-type (car rest-of-entry)))
+                               (cond
+                                 ;; Pedestrian exits - show when on foot
+                                 ((eq exit-type :pedestrian)
+                                  (null vehicle-type))
+                                 ;; Water exits - show when in water vehicle
+                                 ((eq exit-type :water)
+                                  (and vehicle-type (eq vehicle-type :water)))
+                                 ;; Other typed exits - show when vehicle matches
+                                 (t
+                                  (and vehicle-type (eq vehicle-type exit-type)))))
                              ;; Simple exit - show if not in vehicle OR in uber vehicle
                              (or (null vehicle-type) (eq vehicle-type :uber)))))
                      all-exits))
@@ -961,6 +971,9 @@
                                                           (item-name item)
                                                           (length corpse-items))
                                                    :bright-green)))))
+                             ((not (item-portable item))
+                              ;; Skip non-portable items (like vehicles)
+                              nil)
                              (t
                               ;; Normal item
                               (add-to-inventory player item)
@@ -1072,8 +1085,7 @@
        (if (zerop (length rest))
            (write-crlf (player-stream player) (wrap "Enter what?" :bright-red))
            (let* ((target-name (string-trim '(#\Space #\Tab) rest))
-                  (vehicle-item (or (find-item-in-room (player-room player) target-name)
-                                    (find-in-inventory player target-name))))
+                  (vehicle-item (find-item-in-room (player-room player) target-name)))
              (cond
                ((player-vehicle player)
                 (write-crlf (player-stream player)
@@ -1084,10 +1096,8 @@
                 (write-crlf (player-stream player)
                            (wrap (format nil "You can't enter '~a'." target-name) :bright-red)))
                (t
-                ;; Remove vehicle from room or inventory, store in player
-                (if (find-item-in-room (player-room player) target-name)
-                    (remove-item-from-room (player-room player) vehicle-item)
-                    (remove-from-inventory player vehicle-item))
+                ;; Remove vehicle from room and store in player
+                (remove-item-from-room (player-room player) vehicle-item)
                 (setf (player-vehicle player) vehicle-item)
                 (write-crlf (player-stream player)
                            (wrap (format nil "You enter ~a." (item-name vehicle-item))

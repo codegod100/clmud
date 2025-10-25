@@ -8,6 +8,7 @@
   (value 0 :type integer)  ; Amount of effect (mana/health restored, etc.)
   (description "" :type string)
   (vehicle-type nil :type (or null keyword))  ; :water, :uber, etc. (for vehicle items)
+  (portable t :type boolean)  ; Can this item be picked up?
   ;; Equipment stats
   (damage 0 :type integer)  ; Weapon damage bonus
   (armor 0 :type integer)   ; Armor defense rating
@@ -205,6 +206,8 @@
     (cond
       ((null item)
        (values nil (format nil "There is no ~a here." item-name)))
+      ((not (item-portable item))
+       (values nil (format nil "~a is too large to pick up." (item-name item))))
       (t
        (mud.world:remove-item-from-room (mud.player:player-room player) item)
        (add-to-inventory player item)
