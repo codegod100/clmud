@@ -18,7 +18,7 @@
 (load "src/mob.lisp")
 (load "src/combat.lisp")
 (load "src/quest.lisp")
-(load "src/server.lisp.reformatted")
+(load "src/server.lisp")
 
 (defun string-prefix-p (prefix string)
   (and (<= (length prefix) (length string))

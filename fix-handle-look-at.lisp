@@ -16,10 +16,12 @@
 (defun write-all-forms (filename forms)
   "Write all forms to a file with pretty printing"
   (with-open-file (out filename :direction :output :if-exists :supersede)
-    (dolist (form forms)
-      (pprint form out)
-      (terpri out)
-      (terpri out))))
+    (let ((*print-pretty* t)
+          (*print-case* :downcase))
+      (dolist (form forms)
+        (pprint form out)
+        (terpri out)
+        (terpri out)))))
 
 (defun find-defun (forms name)
   "Find a defun form by name"
@@ -52,5 +54,5 @@
         (format t "ERROR: Could not find handle-look-at~%")))
 
   ;; Write back
-  (write-all-forms "src/server.lisp.reformatted" forms)
-  (format t "Wrote reformatted file to src/server.lisp.reformatted~%"))
+  (write-all-forms "src/server.lisp" forms)
+  (format t "Wrote reformatted file to src/server.lisp~%"))
