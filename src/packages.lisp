@@ -51,7 +51,7 @@
   (:use :cl :sb-bsd-sockets :sb-thread)
   (:import-from :mud.ansi :wrap :code :strip :gradient)
   (:import-from :mud.world :initialize-world :find-room :find-room-by-name :starting-room :neighbor :room-id :room-name :room-description :room-exits
-                           :add-item-to-room :remove-item-from-room :find-item-in-room :list-room-items :generate-map
+                           :add-item-to-room :remove-item-from-room :find-item-in-room :list-room-items :room-items :generate-map
                            :find-facet-in-room :room-facets :find-vehicle :vehicle-name :vehicle-type :vehicle-description
                            :vehicle-damage :vehicle-speed)
   (:import-from :mud.player :make-player :player-name :player-room :set-player-room :player-stream :player-socket

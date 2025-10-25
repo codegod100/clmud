@@ -826,21 +826,69 @@
                                  :bright-red)))))))
       ((string= verb "equip")
        (if (zerop (length rest))
-           (write-crlf (player-stream player) (wrap "Equip what? Usage: equip <item>" :bright-red))
-           (let* ((item-name (string-trim '(#\Space #\Tab) rest))
-                  (item (find-in-inventory player item-name)))
-             (if item
-                 (multiple-value-bind (success message) (equip-item player item)
-                   (write-crlf (player-stream player)
-                              (wrap message (if success :bright-green :bright-red)))
-                   (when success
-                     (announce-to-room player
-                                      (format nil "~a equips ~a."
-                                             (wrap (player-name player) :bright-yellow)
-                                             item-name)
-                                      :include-self nil)))
-                 (write-crlf (player-stream player)
-                            (wrap (format nil "You don't have any ~a." item-name) :bright-red))))))
+           (write-crlf (player-stream player) (wrap "Equip what? Usage: equip <item> or equip all" :bright-red))
+           (let ((item-name (string-trim '(#\Space #\Tab) rest)))
+             (if (string-equal item-name "all")
+                 ;; Equip best weapon and armor
+                 (let ((best-weapon nil)
+                       (best-weapon-damage 0)
+                       (best-armor nil)
+                       (best-armor-rating 0))
+                   ;; Find best weapon and armor in inventory
+                   (dolist (item (player-inventory player))
+                     (let ((itype (item-type item)))
+                       (cond
+                         ((eq itype :weapon)
+                          (let ((dmg (item-damage item)))
+                            (when (> dmg best-weapon-damage)
+                              (setf best-weapon item)
+                              (setf best-weapon-damage dmg))))
+                         ((eq itype :armor)
+                          (let ((arm (item-armor item)))
+                            (when (> arm best-armor-rating)
+                              (setf best-armor item)
+                              (setf best-armor-rating arm)))))))
+                   ;; Equip the best items found
+                   (let ((equipped-count 0))
+                     (when best-weapon
+                       (multiple-value-bind (success message) (equip-item player best-weapon)
+                         (when success
+                           (write-crlf (player-stream player)
+                                      (wrap (format nil "Equipped weapon: ~a (~+d damage)"
+                                                   (item-name best-weapon)
+                                                   (item-damage best-weapon))
+                                            :bright-green))
+                           (incf equipped-count))))
+                     (when best-armor
+                       (multiple-value-bind (success message) (equip-item player best-armor)
+                         (when success
+                           (write-crlf (player-stream player)
+                                      (wrap (format nil "Equipped armor: ~a (~+d armor)"
+                                                   (item-name best-armor)
+                                                   (item-armor best-armor))
+                                            :bright-green))
+                           (incf equipped-count))))
+                     (if (> equipped-count 0)
+                         (announce-to-room player
+                                          (format nil "~a equips their best gear."
+                                                 (wrap (player-name player) :bright-yellow))
+                                          :include-self nil)
+                         (write-crlf (player-stream player)
+                                    (wrap "You don't have any equipment to equip." :bright-red)))))
+                 ;; Equip specific item
+                 (let ((item (find-in-inventory player item-name)))
+                   (if item
+                       (multiple-value-bind (success message) (equip-item player item)
+                         (write-crlf (player-stream player)
+                                    (wrap message (if success :bright-green :bright-red)))
+                         (when success
+                           (announce-to-room player
+                                            (format nil "~a equips ~a."
+                                                   (wrap (player-name player) :bright-yellow)
+                                                   item-name)
+                                            :include-self nil)))
+                       (write-crlf (player-stream player)
+                                  (wrap (format nil "You don't have any ~a." item-name) :bright-red))))))))
       ((string= verb "unequip")
        (if (zerop (length rest))
            (write-crlf (player-stream player) (wrap "Unequip what? Usage: unequip weapon/armor" :bright-red))
@@ -889,39 +937,44 @@
                    (write-crlf (player-stream player) (wrap message :bright-red)))))))
       ((member verb '("get" "grab") :test #'string=)
        (if (zerop (length rest))
-           (write-crlf (player-stream player) (wrap "Get what? Usage: get <item>" :bright-red))
+           (write-crlf (player-stream player) (wrap "Get what? Usage: get <item> or get all" :bright-red))
            (let ((item-name (string-trim '(#\Space #\Tab) rest)))
-             ;; Check if it's a corpse
-             (let ((item (find-item-in-room (player-room player) item-name)))
-               (if (and item (eq (item-type item) :corpse))
-                   ;; Looting a corpse
-                   (let ((corpse-items (loot-corpse item)))
-                     (if corpse-items
-                         (progn
-                           (dolist (corpse-item corpse-items)
-                             (add-to-inventory player corpse-item))
-                           (remove-item-from-room (player-room player) item)
+             (if (string-equal item-name "all")
+                 ;; Get all items in the room
+                 (let* ((room (find-room (player-room player)))
+                        (items (when room (copy-list (room-items room)))))
+                   (if (null items)
+                       (write-crlf (player-stream player) (wrap "There are no items here." :bright-red))
+                       (let ((item-count 0))
+                         (dolist (item items)
+                           (cond
+                             ((eq (item-type item) :corpse)
+                              ;; Loot corpse
+                              (let ((corpse-items (loot-corpse item)))
+                                (when corpse-items
+                                  (dolist (corpse-item corpse-items)
+                                    (add-to-inventory player corpse-item)
+                                    (incf item-count))
+                                  (remove-item-from-room (player-room player) item)
+                                  (write-crlf (player-stream player)
+                                             (wrap (format nil "You loot ~a and take ~d item~:p."
+                                                          (item-name item)
+                                                          (length corpse-items))
+                                                   :bright-green)))))
+                             (t
+                              ;; Normal item
+                              (add-to-inventory player item)
+                              (remove-item-from-room (player-room player) item)
+                              (incf item-count))))
+                         (when (> item-count 0)
                            (write-crlf (player-stream player)
-                                      (wrap (format nil "You loot the corpse and take ~d item~:p."
-                                                   (length corpse-items))
+                                      (wrap (format nil "You pick up ~d item~:p." item-count)
                                             :bright-green))
                            (announce-to-room player
-                                            (format nil "~a loots ~a."
-                                                   (wrap (player-name player) :bright-yellow)
-                                                   item-name)
-                                            :include-self nil))
-                         (write-crlf (player-stream player) (wrap "The corpse is empty." :bright-red))))
-                   ;; Normal item pickup
-                   (multiple-value-bind (success message) (grab-item player item-name)
-                     (if success
-                         (progn
-                           (write-crlf (player-stream player) (wrap message :bright-green))
-                           (announce-to-room player
-                                            (format nil "~a gets ~a."
-                                                   (wrap (player-name player) :bright-yellow)
-                                                   item-name)
+                                            (format nil "~a picks up everything."
+                                                   (wrap (player-name player) :bright-yellow))
                                             :include-self nil)
-                           ;; Check quest completion after picking up item
+                           ;; Check quest completion
                            (multiple-value-bind (completed leveled-up quest)
                                (check-quest-completion player :apple-picking)
                              (when completed
@@ -942,8 +995,60 @@
                                             (wrap (format nil "Health: +10 (now ~d)  Mana: +5 (now ~d)"
                                                          (player-max-health player)
                                                          (player-max-mana player))
-                                                  :bright-green))))))
-                         (write-crlf (player-stream player) (wrap message :bright-red)))))))))
+                                                  :bright-green)))))))))
+                 ;; Get specific item
+                 (let ((item (find-item-in-room (player-room player) item-name)))
+                   (if (and item (eq (item-type item) :corpse))
+                       ;; Looting a corpse
+                       (let ((corpse-items (loot-corpse item)))
+                         (if corpse-items
+                             (progn
+                               (dolist (corpse-item corpse-items)
+                                 (add-to-inventory player corpse-item))
+                               (remove-item-from-room (player-room player) item)
+                               (write-crlf (player-stream player)
+                                          (wrap (format nil "You loot the corpse and take ~d item~:p."
+                                                       (length corpse-items))
+                                                :bright-green))
+                               (announce-to-room player
+                                                (format nil "~a loots ~a."
+                                                       (wrap (player-name player) :bright-yellow)
+                                                       item-name)
+                                                :include-self nil))
+                             (write-crlf (player-stream player) (wrap "The corpse is empty." :bright-red))))
+                       ;; Normal item pickup
+                       (multiple-value-bind (success message) (grab-item player item-name)
+                         (if success
+                             (progn
+                               (write-crlf (player-stream player) (wrap message :bright-green))
+                               (announce-to-room player
+                                                (format nil "~a gets ~a."
+                                                       (wrap (player-name player) :bright-yellow)
+                                                       item-name)
+                                                :include-self nil)
+                               ;; Check quest completion after picking up item
+                               (multiple-value-bind (completed leveled-up quest)
+                                   (check-quest-completion player :apple-picking)
+                                 (when completed
+                                   (write-crlf (player-stream player)
+                                              (wrap (format nil "Quest Complete: ~a" (quest-name quest))
+                                                    :bright-yellow))
+                                   (write-crlf (player-stream player)
+                                              (wrap (quest-reward-text quest) :bright-green))
+                                   (write-crlf (player-stream player)
+                                              (wrap (format nil "You gained ~d XP!" (quest-reward-xp quest))
+                                                    :bright-cyan))
+                                   (when leveled-up
+                                     (write-crlf (player-stream player)
+                                                (wrap (format nil "*** LEVEL UP! You are now level ~d! ***"
+                                                             (player-level player))
+                                                      :bright-magenta))
+                                     (write-crlf (player-stream player)
+                                                (wrap (format nil "Health: +10 (now ~d)  Mana: +5 (now ~d)"
+                                                             (player-max-health player)
+                                                             (player-max-mana player))
+                                                      :bright-green))))))
+                             (write-crlf (player-stream player) (wrap message :bright-red))))))))))
       ((string= verb ".")
        (write-crlf (player-stream player) (wrap "No previous command to repeat." :bright-red)))
       ((string= verb "suicide")
@@ -1104,8 +1209,8 @@
        (write-crlf (player-stream player) "  Movement: look (l), go <dir> (n/s/e/w/u/d/ne/nw/se/sw), enter <vehicle>, exit, uber <location>")
        (write-crlf (player-stream player) "  Social: say <text>, who")
        (write-crlf (player-stream player) "  Combat: attack <mob>, ram <mob> (in vehicle), cast <spell> <target>, stats, spells")
-       (write-crlf (player-stream player) "  Equipment: equip <item>, unequip weapon/armor")
-       (write-crlf (player-stream player) "  Inventory: inventory (inv/i), use <item>, drop <item>, get <item> (loot corpses)")
+       (write-crlf (player-stream player) "  Equipment: equip <item|all>, unequip weapon/armor")
+       (write-crlf (player-stream player) "  Inventory: inventory (inv/i), use <item>, drop <item>, get <item|all> (loot corpses)")
        (write-crlf (player-stream player) "  Quests: quest, quest start apple, status")
        (write-crlf (player-stream player) "  Other: help, quit, . (repeat last command), suicide (test death)"))
       ((member verb '("quit" "exit") :test #'string=)
