@@ -1,13 +1,10 @@
-(let* ((script (or *load-truename*
-                    (ignore-errors (truename (first sb-ext:*posix-argv*)))))
-       (dir (and script (pathname-directory script))))
-  (when dir
-    (setf *default-pathname-defaults*
-          (make-pathname :directory dir :defaults script))))
+(load "~/quicklisp/setup.lisp")
+(ql:quickload :fiveam)
 
 ;; Load dependencies in the same order as the main entry point, but without
 ;; starting the server.
 (require :sb-bsd-sockets)
+(require :asdf)
 (load "../src/packages.lisp")
 (load "../src/ansi.lisp")
 (load "../src/player.lisp")
@@ -18,16 +15,7 @@
 (load "../src/quest.lisp")
 (load "../src/server.lisp")
 
-(defun ensure-fiveam ()
-  "Load FiveAM if available, otherwise fall back to the local stub."
-  (unless (find-package :fiveam)
-    (ignore-errors (require :fiveam))
-    (unless (find-package :fiveam)
-      (load "fiveam-stub.lisp")))
-  (unless (find-package :fiveam)
-    (error "Unable to load FiveAM or the local stub.")))
 
-(ensure-fiveam)
 
 (defpackage :mud.tests
   (:use :cl :fiveam))
