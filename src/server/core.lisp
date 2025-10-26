@@ -354,13 +354,7 @@
                  (available-exits
                   (remove-if-not
                    (lambda (exit-entry)
-                     (let ((direction (car exit-entry))
-                           (rest-of-entry (cdr exit-entry)))
-                       (if (and (consp rest-of-entry)
-                                (keywordp (car rest-of-entry)))
-                           (and vehicle-type
-                                (eq vehicle-type (car rest-of-entry)))
-                           (or (null vehicle-type) (eq vehicle-type :uber)))))
+          (neighbor room (car exit-entry) vehicle-type))
                    all-exits))
                  (exit-names
                   (mapcar
