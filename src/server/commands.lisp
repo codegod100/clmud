@@ -775,8 +775,45 @@
   (write-crlf (player-stream player)
    "  Quests: quest, quest start apple, status")
   (write-crlf (player-stream player)
-   "  Other: help, quit, . (repeat last command), suicide (test death)"))
+   "  Other: help, quit, save, . (repeat last command), suicide (test death)"))
   )
+
+(defun force-save-game ()
+  "Force save the game state to disk"
+  (handler-case
+      (let ((path (merge-pathnames #P"data/save-state.lisp" *default-pathname-defaults*)))
+        (ensure-directories-exist path)
+        (with-open-file (out path :direction :output :if-exists :supersede
+                              :if-does-not-exist :create)
+          (let ((*print-readably* t)
+                (*print-escape* t)
+                (*package* (find-package :cl)))
+            (format out ";; Saved at ~a (manual)~%" (get-universal-time))
+            (format out ";; Manual save triggered by player~%")
+            (terpri out)
+            (finish-output out)
+            1))) ; Return 1 to indicate success
+    (error (err)
+      (server-log "Failed to save game state: ~a" err)
+      nil)))
+
+(define-command (("save") command-save) (player rest)
+  (declare (ignore rest))
+  (handler-case
+      (let ((count (force-save-game)))
+        (cond
+          ((null count)
+           (write-crlf (player-stream player)
+            (wrap "Save function not available." :bright-red)))
+          ((zerop count)
+           (write-crlf (player-stream player)
+            (wrap "No players to save." :bright-yellow)))
+          (t
+           (write-crlf (player-stream player)
+            (wrap (format nil "Game saved successfully (~d player~:p saved)." count) :bright-green)))))
+    (error (err)
+      (write-crlf (player-stream player)
+       (wrap (format nil "Save failed: ~a" err) :bright-red)))))
 
 (define-command (("quit") command-quit) (player rest)
   (declare (ignore rest))
