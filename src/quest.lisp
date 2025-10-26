@@ -98,7 +98,17 @@
                   ;; Quest is complete if player has an apple in inventory
                   (has-item-in-inventory-p player "apple"))
                 200  ; Exactly enough XP to level from 1 to 2
-                "The elder smiles warmly. 'Thank you, young adventurer. Your journey has just begun!'"))
+                "The elder smiles warmly. 'Thank you, young adventurer. Your journey has just begun!'")
+
+  ;; The Pirate's Treasure Quest - adventure in the cove
+  (define-quest :pirate-treasure
+                "The Pirate's Lost Treasure"
+                "Captain Blackbeard in the hidden cove has lost his treasure map! He's offering a reward to anyone who can help him find it. Talk to him to learn more about his lost treasure."
+                (lambda (player)
+                  ;; Quest is complete if player has the treasure map
+                  (has-item-in-inventory-p player "treasure-map"))
+                300  ; Good XP reward for a more complex quest
+                "Captain Blackbeard's eyes light up! 'Ah, me treasure map! Ye've found it! Here's yer reward, matey - and keep that cutlass, it's served me well!'"))
 
 (defun maybe-announce-quest-rewards (player)
   "Check all active quests for completion and announce rewards"

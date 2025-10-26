@@ -230,6 +230,77 @@ quit
 ./dev.sh test
 ```
 
+## Debugging Practice
+
+**IMPORTANT**: Every time the server dies and we have to debug the trace, add a test for that specific issue to prevent regression.
+
+### Recent Debugging Issues
+
+1. **Talk Command Syntax Error** (2024-12-19)
+   - **Issue**: Missing closing parenthesis in `talk` command caused "end of file" error
+   - **Root Cause**: Incorrect nesting of `define-command`, `if`, `let*`, and `cond` forms
+   - **Test Added**: `tests/unit/test-talk-command.lisp`
+   - **Location**: `src/server/commands/player.lisp` lines 149-173
+
+2. **Direction Normalization** (2024-12-19)
+   - **Issue**: downstream/upstream directions causing confusion
+   - **Root Cause**: Non-standard direction names
+   - **Solution**: Refactored to use north/south
+   - **Test Added**: TODO - Add test for direction normalization
+
+3. **Talk Command Improvements** (2024-12-19)
+   - **Issue**: Talk command failed silently when NPC not present, no abbreviation support
+   - **Root Cause**: Missing mob presence check, hardcoded name matching
+   - **Solution**: Added mob presence checking, abbreviation support (blackbeard/captain/black/cap)
+   - **Test Added**: `tests/commands/test-talk-command-improvements.lisp`
+   - **Location**: `src/server/commands/player.lisp` lines 149-186
+
+4. **Mob Aliases System Refactor** (2024-12-19)
+   - **Issue**: Hardcoded abbreviations in talk command, not extensible
+   - **Root Cause**: Abbreviations were hardcoded in command logic instead of being mob properties
+   - **Solution**: Added `aliases` field to mob struct, unified search system using mob IDs
+   - **Test Added**: `tests/commands/test-mob-aliases.lisp`
+   - **Location**: `src/mob.lisp` (mob struct + find-mob-in-room), `src/server/commands/player.lisp` (get-mob-dialogue)
+
+5. **Mob Search System Simplification** (2024-12-19)
+   - **Issue**: Aliases field was unnecessary complexity when partial name matching already worked
+   - **Root Cause**: Over-engineering the search system with separate aliases field
+   - **Solution**: Removed aliases field, simplified to use existing partial name matching
+   - **Test Added**: `tests/commands/test-simplified-mob-search.lisp`
+   - **Location**: `src/mob.lisp` (mob struct + define-mob-template + find-mob-in-room)
+
+6. **Quest Giver System Implementation** (2024-12-19)
+   - **Issue**: Quest system required commands to start quests, not immersive
+   - **Root Cause**: Quest starting was command-based instead of NPC-driven
+   - **Solution**: Added quest-giver field to mobs, immersive dialogue system with accept/decline
+   - **Test Added**: `tests/commands/test-quest-giver-simple.lisp`
+   - **Location**: `src/mob.lisp` (quest-giver field), `src/server/commands/player.lisp` (dialogue + accept/decline)
+
+### Test Creation Guidelines
+
+When adding tests for debugging issues:
+
+1. **Compilation Tests**: Test that the problematic code compiles without errors
+2. **Runtime Tests**: Test that the functionality works as expected
+3. **Error Prevention**: Test edge cases that could cause similar issues
+4. **Regression Prevention**: Ensure the specific error doesn't happen again
+
+### Test File Locations
+
+- Unit tests: `tests/unit/`
+- Command tests: `tests/commands/`
+- Integration tests: `tests/integration/`
+
+### Running Tests
+
+```bash
+# Run all tests
+./dev.sh test
+
+# Run specific test file
+sbcl --script tests/unit/test-talk-command.lisp
+```
+
 ## Common Tasks
 
 ### Adding a New Command

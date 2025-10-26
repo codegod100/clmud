@@ -86,7 +86,21 @@
               :type :consumable
               :effect :repair-vehicle
               :value 10
-              :description "A toolkit containing tools and materials to fully repair vehicles. Restores all vehicle armor."))
+              :description "A toolkit containing tools and materials to fully repair vehicles. Restores all vehicle armor.")
+   ;; Pirate items
+   (make-item :name "pirate-cutlass"
+              :type :weapon
+              :damage 18
+              :slot :weapon
+              :description "A curved cutlass with a wicked edge, favored by pirates and sea rogues.")
+   (make-item :name "treasure-map"
+              :type :consumable
+              :description "An old treasure map with cryptic markings. It seems to point to a location deep in the forest...")
+   (make-item :name "pirate-hat"
+              :type :armor
+              :armor 3
+              :slot :armor
+              :description "A tricorn hat with a feather. It makes you feel more dashing and slightly more protected."))
   "List of item templates")
 
 (defun find-item-template (name)

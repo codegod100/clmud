@@ -20,6 +20,7 @@
   combat-target   ; Player or mob this mob is fighting
   last-attack-time ; Universal time of last attack
   attack-interval ; Interval between attacks (in seconds)
+  quest-giver     ; Quest ID this mob can give (nil if not a quest giver)
   )
 
 (defparameter *mob-templates* (make-hash-table :test #'eq)
@@ -28,7 +29,7 @@
 (defparameter *room-mobs* (make-hash-table :test #'eq)
   "Hash table of room-id -> list of mob instances in that room")
 
-(defun define-mob-template (id name description max-health damage armor xp-reward loot-table &key (aggressive nil) (move-interval-min 30) (move-interval-max 120))
+(defun define-mob-template (id name description max-health damage armor xp-reward loot-table &key (aggressive nil) (move-interval-min 30) (move-interval-max 120) (quest-giver nil))
   "Define a mob template"
   (setf (gethash id *mob-templates*)
         (make-mob :id id
@@ -47,7 +48,8 @@
                   :in-combat nil
                   :combat-target nil
                   :last-attack-time 0
-                  :attack-interval 3)))
+                  :attack-interval 3
+                  :quest-giver quest-giver)))
 
 (defun find-mob-template (id)
   "Find a mob template by ID"
@@ -173,12 +175,25 @@
                        '("guardian-axe" "nature-amulet")
                        :aggressive t)
 
+  ;; Captain Blackbeard - Pirate boss in the cove
+  (define-mob-template :captain-blackbeard
+                       "Captain Blackbeard"
+                       "A grizzled pirate captain with a long black beard and a wicked gleam in his eye. His cutlass gleams in the moonlight, and a treasure map peeks from his coat pocket."
+                       80    ; max-health
+                       20    ; damage
+                       10    ; armor
+                       200   ; xp-reward
+                       '("pirate-cutlass" "treasure-map" "gold-coins" "pirate-hat")
+                       :aggressive nil
+                       :quest-giver :pirate-treasure)
+
   ;; Spawn initial mobs in the world
   (spawn-mob :goblin 'mud.world::whispering-wood)
   (spawn-mob :wolf 'mud.world::whispering-wood)
   (spawn-mob :skeleton 'mud.world::graveyard)
   (spawn-mob :bandit 'mud.world::moonlit-lane)
-  (spawn-mob :forest-guardian 'mud.world::ancient-grove))
+  (spawn-mob :forest-guardian 'mud.world::ancient-grove)
+  (spawn-mob :captain-blackbeard 'mud.world::hidden-cove))
 
 ;;; Mob Movement System
 

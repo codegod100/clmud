@@ -112,15 +112,17 @@
                "Riverbank"
                "Moonlight paints the [river] in silver ribbons. A wooden skiff knocks gently against the pier, ready for anyone bold enough to cast off."
                '((:north . market-stalls)
-                 (:downstream :water . hidden-cove)
+                 (:south :water . hidden-cove)
                  (:up :air . sky-over-river))
                '(("river" . "The water flows swiftly, its depths dark and mysterious. You think you see something glinting on the riverbed...")))
   (define-room 'hidden-cove
                "Hidden Cove"
-               "A secluded cove surrounded by towering cliffs. The water is calm here, crystal clear. Ancient [ruins] peek through the vines on the cliff face, and a narrow [cave entrance] yawns in the rock."
-               '((:upstream :water . riverbank))
+               "A secluded cove surrounded by towering cliffs. The water is calm here, crystal clear. Ancient [ruins] peek through the vines on the cliff face, and a narrow [cave entrance] yawns in the rock. A weathered [shipwreck] lies half-submerged near the shore, and [Captain Blackbeard] stands on the beach, looking out to sea with a troubled expression."
+               '((:north :water . riverbank))
                '(("ruins" . "The ruins are covered in the same strange runes you saw on the forest archway. They seem to glow faintly in the moonlight, pulsing with an otherworldly energy.")
-                 ("cave entrance" . "The cave is dark and foreboding. Cold air wafts out, carrying whispers of things best left undisturbed. You sense great power - and great danger - within.")))
+                 ("cave entrance" . "The cave is dark and foreboding. Cold air wafts out, carrying whispers of things best left undisturbed. You sense great power - and great danger - within.")
+                 ("shipwreck" . "The remains of a once-proud vessel, now broken and weathered by time. Barnacles cling to its hull, and seaweed drapes from its broken masts.")
+                 ("Captain Blackbeard" . "A grizzled pirate captain with a long black beard and a wicked gleam in his eye. His cutlass gleams in the moonlight, and a treasure map peeks from his coat pocket. He seems to be muttering about lost treasure.")))
   (define-room 'graveyard
                "Graveyard"
                "Ancient [tombstones] lean in the mist, their inscriptions worn by time. The air is still, heavy with the weight of countless souls who have passed through this veil. A faint [ethereal glow] marks the boundary between life and death."
@@ -170,7 +172,7 @@
 
   (define-room 'sky-over-river
                "Sky Above the River"
-               "The UFO drifts above the winding [river], its waters shimmering below. You can trace its path downstream to a [hidden cove] surrounded by sheer cliffs. To the north, the market district is visible."
+               "The UFO drifts above the winding [river], its waters shimmering below. You can trace its path south to a [hidden cove] surrounded by sheer cliffs. To the north, the market district is visible."
                '((:down :air . riverbank)
                  (:north . sky-over-market))
                '(("river" . "The river flows peacefully below, its surface mirror-smooth except where it churns around rocks.")
@@ -328,8 +330,8 @@
     (:southwest '(-1 1))
     (:up '(0 0))      ; Up/down don't affect 2D map
     (:down '(0 0))
-    (:upstream '(0 -1))
-    (:downstream '(0 1))
+    (:north '(0 -1))
+    (:south '(0 1))
     (t '(0 0))))
 
 (defun explore-map (start-room-id &optional (vehicle-type nil) (max-depth 20))

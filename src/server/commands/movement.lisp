@@ -2,7 +2,7 @@
 
 ;; Register direction commands
 (eval-when (:load-toplevel :execute)
-  (dolist (alias '("n" "s" "e" "w" "u" "d" "ne" "nw" "se" "sw" "downstream" "upstream"))
+  (dolist (alias '("n" "s" "e" "w" "u" "d" "ne" "nw" "se" "sw"))
     (register-direction-command alias)))
 
 (define-command (("look" "l") command-look) (player rest)
