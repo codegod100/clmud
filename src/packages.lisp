@@ -26,6 +26,7 @@
 (defpackage :mud.player
   (:use :cl)
   (:export :make-player
+           :get-or-create-player
            :player-name
            :player-room
            :set-player-room
@@ -56,7 +57,8 @@
            :xp-for-level
            :xp-to-next-level
            :equip-item
-           :unequip-item))
+           :unequip-item
+           :detach-player))
 
 (defpackage :mud.merchant
   (:use :cl)

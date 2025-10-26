@@ -7,32 +7,38 @@
         (let ((name (ask-for-name stream)))
           (unless name (return-from client-loop))
           (let* ((start (starting-room)) (room-id (room-id start)))
-            (setf player
-                    (make-player :name name :room room-id :stream stream
-                     :socket socket))
-            (dotimes (i 3)
-              (add-to-inventory player (create-item "mana-potion")))
-            (add-client player)
-            (write-crlf stream
-             (wrap "Welcome to the Endless Evening." :bright-cyan))
-            (announce-to-room player
-             (format nil "~a arrives." (wrap name :bright-green)) :include-self
-             nil)
-            (send-room-overview player)
-            (let ((last-command nil))
-              (loop (prompt stream)
-                    (let ((line (read-telnet-line stream)))
-                      (when (null line) (return))
-                      (when (and (string= line ".") last-command)
-                        (setf line last-command))
-                      (unless (string= line ".") (setf last-command line))
-                      (case (handle-command player line)
-                        (:quit
-                         (setf graceful t)
-                         (write-crlf stream
-                          (wrap "May the stars guide your steps."
-                           :bright-yellow))
-                         (return)))))))))
+            (multiple-value-bind (reclaimed new-player-p)
+                (get-or-create-player :name name :room room-id
+                                      :stream stream :socket socket)
+              (setf player reclaimed)
+              (when new-player-p
+                (dotimes (i 3)
+                  (add-to-inventory player (create-item "mana-potion"))))
+              (add-client player)
+              (write-crlf stream
+               (if new-player-p
+                   (wrap "Welcome to the Endless Evening." :bright-cyan)
+                   (wrap "Welcome back to the Endless Evening." :bright-cyan)))
+              (let ((arrival-text
+                      (if new-player-p
+                          (format nil "~a arrives." (wrap name :bright-green))
+                          (format nil "~a returns." (wrap name :bright-green)))))
+                (announce-to-room player arrival-text :include-self nil))
+              (send-room-overview player)
+              (let ((last-command nil))
+                (loop (prompt stream)
+                      (let ((line (read-telnet-line stream)))
+                        (when (null line) (return))
+                        (when (and (string= line ".") last-command)
+                          (setf line last-command))
+                        (unless (string= line ".") (setf last-command line))
+                        (case (handle-command player line)
+                          (:quit
+                           (setf graceful t)
+                           (write-crlf stream
+                            (wrap "May the stars guide your steps."
+                             :bright-yellow))
+                           (return))))))))))
     (when player
       (announce-to-room player
        (if graceful
@@ -40,7 +46,9 @@
                    (wrap (player-name player) :bright-blue))
            (format nil "~a disconnects."
                    (wrap (player-name player) :bright-red)))))
-    (when player (remove-client player))
+    (when player
+      (remove-client player)
+      (detach-player player))
     (ignore-errors (close stream))
     (ignore-errors (close socket))))
 

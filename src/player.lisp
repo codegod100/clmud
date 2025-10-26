@@ -40,6 +40,42 @@
                          :equipped-weapon nil
                          :equipped-armor nil))
 
+(defparameter *player-registry* (make-hash-table :test #'equal))
+
+(defparameter *player-registry-lock*
+  (sb-thread:make-mutex :name "player-registry-lock"))
+
+(defun %normalize-player-key (name)
+  (string-upcase name))
+
+(defun get-or-create-player (&key name room stream socket)
+  "Return existing player by NAME or create a new one. Second value is T when freshly created."
+  (when (null name)
+    (error "Player name required."))
+  (let ((key (%normalize-player-key name)))
+    (sb-thread:with-mutex (*player-registry-lock*)
+      (multiple-value-bind (player present) (gethash key *player-registry*)
+        (if present
+            (progn
+              (when stream (setf (player-stream player) stream))
+              (when socket (setf (player-socket player) socket))
+              (when (and room (null (player-room player)))
+                (setf (player-room player) room))
+              (values player nil))
+            (progn
+              (when (null room)
+                (error "Room required when creating new player ~a." name))
+              (let ((new-player (make-player :name name :room room
+                                             :stream stream :socket socket)))
+                (setf (gethash key *player-registry*) new-player)
+                (values new-player t))))))))
+
+(defun detach-player (player)
+  "Drop transport handles for PLAYER while leaving game state intact."
+  (when player
+    (setf (player-stream player) nil
+          (player-socket player) nil)))
+
 (defun set-player-room (player new-room)
   (setf (player-room player) new-room))
 
