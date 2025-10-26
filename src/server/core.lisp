@@ -277,6 +277,25 @@
          (wrap (format nil "~a: ~a" (item-name room-item)
                        (mud.inventory:item-description room-item))
                :bright-white))
+        ;; Show vehicle stats if it's a vehicle
+        (when (eq (mud.inventory:item-type room-item) :vehicle)
+          (let* ((vehicle-template (mud.world::find-vehicle (mud.inventory:item-name room-item))))
+            (when vehicle-template
+              (let ((current-armor (mud.world::vehicle-armor vehicle-template))
+                    (max-armor (mud.world::vehicle-max-armor vehicle-template))
+                    (damage (mud.world::vehicle-damage vehicle-template))
+                    (speed (mud.world::vehicle-speed vehicle-template)))
+                (write-crlf stream
+                 (wrap (format nil "Armor: ~d/~d | Damage: ~d | Speed: ~d" 
+                               current-armor max-armor damage speed)
+                       :bright-cyan))
+                (when (< current-armor max-armor)
+                  (write-crlf stream
+                   (wrap (format nil "Condition: ~a" 
+                                 (if (zerop current-armor) 
+                                     "BROKEN" 
+                                     "DAMAGED"))
+                         :bright-red)))))))
         (when (eq (item-type room-item) :corpse)
           (let ((corpse-contents
                  (gethash (item-name room-item) mud.combat:*corpse-data*)))
@@ -343,7 +362,15 @@
            (wrap (generate-map room-id vehicle-type) :bright-cyan))
           (write-crlf stream
            (wrap (format nil "~a" (room-name room)) :bold :bright-cyan))
-          (write-crlf stream (colorize-facets (room-description room)))
+          (if vehicle
+              ;; Player is in a vehicle - show window view
+              (write-crlf stream 
+               (wrap (format nil "Out the window of your ~a you see: ~a" 
+                             (mud.inventory:item-name vehicle)
+                             (colorize-facets (room-description room)))
+                     :bright-cyan))
+              ;; Player is on foot - show normal room description
+              (write-crlf stream (colorize-facets (room-description room))))
           (write-crlf stream "")
           (with-mutex (*clients-lock*)
            (let ((others
@@ -377,6 +404,11 @@
             (when items-str
               (write-crlf stream
                (wrap (format nil "Items: ~a" items-str) :bright-white))))
+          ;; Show vehicles with players inside (excluding current player)
+          (let ((vehicles-with-players (get-vehicles-with-players (player-room player) player)))
+            (when vehicles-with-players
+              (write-crlf stream
+               (wrap (format nil "Vehicles: ~{~a~^, ~}" vehicles-with-players) :bright-blue))))
           (write-crlf stream "")
           (let* ((all-exits (room-exits room))
                  (available-exits
@@ -401,6 +433,47 @@
         (write-crlf (player-stream player)
          (wrap (format nil "ERROR: Room ~a not found!" room-id) :bright-red)))))
 
+
+(defun get-vehicles-with-players (room-id &optional exclude-player)
+  "Get list of vehicles in room with players inside, formatted as 'vehicle [with player]'"
+  (let ((vehicles nil))
+    (with-mutex (*clients-lock*)
+      (dolist (client *clients*)
+        (when (and (player-vehicle client)
+                   (eq (player-room client) room-id)
+                   (not (eq client exclude-player)))
+          (let* ((vehicle (player-vehicle client))
+                 (vehicle-name (mud.inventory:item-name vehicle))
+                 (player-name (player-name client))
+                 (formatted (format nil "~a [with ~a inside]" vehicle-name player-name)))
+            (push formatted vehicles)))))
+    (remove-duplicates vehicles :test #'string=)))
+
+(defun show-player-status (player)
+  "Show player status including vehicle condition if in a vehicle"
+  (let ((stream (player-stream player)))
+    (write-crlf stream
+     (format nil "Health: ~d/~d  Mana: ~d/~d" 
+             (player-health player) (player-max-health player)
+             (player-mana player) (player-max-mana player)))
+    (write-crlf stream
+     (format nil "Damage: ~d  Armor: ~d" 
+             (get-player-damage player) (get-player-armor player)))
+    ;; Show vehicle condition if in a vehicle
+    (when (player-vehicle player)
+      (let* ((vehicle-item (player-vehicle player))
+             (vehicle-template (mud.world::find-vehicle (mud.inventory:item-name vehicle-item))))
+        (when vehicle-template
+          (let ((current-armor (mud.world::vehicle-armor vehicle-template))
+                (max-armor (mud.world::vehicle-max-armor vehicle-template)))
+            (write-crlf stream
+             (format nil "Vehicle: ~a (~d/~d armor)"
+                     (mud.inventory:item-name vehicle-item)
+                     current-armor max-armor))
+            (when (< current-armor max-armor)
+              (write-crlf stream
+               (format nil "Condition: ~a"
+                       (if (zerop current-armor) "BROKEN" "DAMAGED"))))))))))
 
 (defun announce-to-room (player message &key (include-self nil) (exclude nil))
   (let ((room-id (player-room player)))
@@ -503,13 +576,45 @@
                (mob-health mob) (mob-max-health mob)))
       (let* ((mob-dmg (mob-damage mob))
              (player-armor (get-player-armor player))
-             (counter-damage (max 1 (- mob-dmg player-armor))))
-        (modify-health player (- counter-damage))
-        (write-crlf (player-stream player)
-         (wrap
-          (format nil "~a attacks you for ~d damage!" (mob-name mob)
-                  counter-damage)
-          :bright-red))
+             (vehicle-armor (get-vehicle-armor player))
+             (total-armor (+ player-armor vehicle-armor))
+             (counter-damage (max 1 (- mob-dmg total-armor))))
+        (if (and (player-vehicle player) (> vehicle-armor 0))
+            ;; Vehicle takes damage first
+            (let ((excess-damage (damage-vehicle player mob-dmg)))
+              (if (> excess-damage 0)
+                  ;; Vehicle broke, player takes excess damage
+                  (progn
+                    (write-crlf (player-stream player)
+                     (wrap
+                      (format nil "~a attacks your ~a, destroying it! You take ~d damage!"
+                              (mob-name mob) (mud.inventory:item-name (player-vehicle player)) excess-damage)
+                      :bright-red))
+                    (modify-health player (- excess-damage))
+                    ;; Remove player from broken vehicle
+                    (mud.world:add-item-to-room (player-room player) (player-vehicle player))
+                    (setf (player-vehicle player) nil)
+                    ;; Show status after taking damage
+                    (show-player-status player))
+                  ;; Vehicle absorbed all damage
+                  (progn
+                    (write-crlf (player-stream player)
+                     (wrap
+                      (format nil "~a attacks your ~a, but it absorbs the damage!"
+                              (mob-name mob) (mud.inventory:item-name (player-vehicle player)))
+                      :bright-yellow))
+                    ;; Show status to show vehicle condition
+                    (show-player-status player)))))
+            ;; No vehicle armor, player takes damage directly
+            (progn
+              (modify-health player (- counter-damage))
+              (write-crlf (player-stream player)
+               (wrap
+                (format nil "~a attacks you for ~d damage!" (mob-name mob)
+                        counter-damage)
+                :bright-red))
+              ;; Show status after taking damage
+              (show-player-status player)))
         (announce-to-room player
          (format nil "~a is attacked by ~a!"
                  (wrap (player-name player) :bright-red) (mob-name mob))
@@ -525,7 +630,7 @@
           (write-crlf (player-stream player)
            (wrap "You awaken in the graveyard, wounded but alive..."
             :bright-black))
-          (send-room-overview player)))))))
+          (send-room-overview player))))))
 
 
 (defun split-on-whitespace (string)

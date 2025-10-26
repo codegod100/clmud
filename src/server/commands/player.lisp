@@ -54,7 +54,22 @@
     (write-crlf (player-stream player)
      (format nil "Armor: ~a (~+d armor)"
              (item-name (player-equipped-armor player))
-             (item-armor (player-equipped-armor player))))))
+             (item-armor (player-equipped-armor player)))))
+  ;; Show vehicle condition if in a vehicle
+  (when (player-vehicle player)
+    (let* ((vehicle-item (player-vehicle player))
+           (vehicle-template (mud.world::find-vehicle (mud.inventory:item-name vehicle-item))))
+      (when vehicle-template
+        (let ((current-armor (mud.world::vehicle-armor vehicle-template))
+              (max-armor (mud.world::vehicle-max-armor vehicle-template)))
+          (write-crlf (player-stream player)
+           (format nil "Vehicle: ~a (~d/~d armor)"
+                   (mud.inventory:item-name vehicle-item)
+                   current-armor max-armor))
+          (when (< current-armor max-armor)
+            (write-crlf (player-stream player)
+             (format nil "Condition: ~a"
+                     (if (zerop current-armor) "BROKEN" "DAMAGED")))))))))
 
 (define-command (("quest") command-quest) (player rest)
   (if (zerop (length rest))

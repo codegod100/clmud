@@ -22,7 +22,16 @@
            :room-items
            :direction-delta
            :explore-map
-           :generate-map))
+           :generate-map
+           :define-vehicle
+           :find-vehicle
+           :vehicle-armor
+           :vehicle-damage
+           :vehicle-speed
+           :vehicle-name
+           :vehicle-type
+           :vehicle-description
+           :vehicle-max-armor))
 
 (defpackage :mud.player
   (:use :cl)
@@ -51,6 +60,8 @@
            :player-alive-p
            :get-player-damage
            :get-player-armor
+           :get-vehicle-armor
+           :damage-vehicle
            :modify-health
            :modify-mana
            :modify-gold
@@ -167,4 +178,5 @@
     :mud.quest
     :mud.merchant)
   (:shadow :log)
-  (:export :start :stop :await))
+  (:export :start :stop :await
+           :get-vehicles-with-players))

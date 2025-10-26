@@ -6,6 +6,7 @@ alwaysApply: true
 ## Development Preference
 - **PREFER INTERACTIVE LISP DEVELOPMENT** - Use `sbcl --script utils/repl.lisp` for interactive debugging and testing
 - **OR PROGRAMMATIC LISP** - Pass in Lisp code directly: `sbcl --eval "(load \"src/packages.lisp\") (load \"src/world.lisp\") ..."`
+- **AVOID mud.lisp FOR DEBUGGING** - Don't use `sbcl --script mud.lisp` for testing changes; it's for production server startup only
 - Avoid server/telnet debugging unless specifically needed for network protocol issues
 - Work in the REPL or with direct Lisp evaluation with loaded packages: `mud.world`, `mud.player`, `mud.mob`, `mud.combat`, `mud.quest`, `mud.server`
 

@@ -149,6 +149,35 @@
       (setf armor-rating (mud.inventory:item-armor (player-equipped-armor player))))
     armor-rating))
 
+(defun get-vehicle-armor (player)
+  "Get vehicle armor rating if player is in a vehicle"
+  (if (player-vehicle player)
+      (let* ((vehicle-item (player-vehicle player))
+             (vehicle-template (mud.world::find-vehicle (mud.inventory:item-name vehicle-item))))
+        (if vehicle-template
+            (mud.world::vehicle-armor vehicle-template)
+            0))
+      0))
+
+(defun damage-vehicle (player damage)
+  "Apply damage to player's vehicle, return remaining damage if vehicle breaks"
+  (if (player-vehicle player)
+      (let* ((vehicle-item (player-vehicle player))
+             (vehicle-template (mud.world::find-vehicle (mud.inventory:item-name vehicle-item))))
+        (if vehicle-template
+            (let ((current-armor (mud.world::vehicle-armor vehicle-template)))
+              (if (>= damage current-armor)
+                  ;; Vehicle breaks
+                  (progn
+                    (setf (mud.world::vehicle-armor vehicle-template) 0)
+                    (- damage current-armor)) ; Return excess damage
+                  ;; Vehicle absorbs damage
+                  (progn
+                    (setf (mud.world::vehicle-armor vehicle-template) (- current-armor damage))
+                    0))) ; No excess damage
+            damage)) ; No vehicle template found, return full damage
+      damage)) ; No vehicle, return full damage
+
 (defun equip-item (player item)
   "Equip an item (weapon or armor). Returns (values success message)"
   (let ((item-type (mud.inventory:item-type item)))

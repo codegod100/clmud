@@ -178,6 +178,19 @@
         (format out "Armor: ~a (~+d armor)~%"
                 (mud.inventory:item-name (mud.player:player-equipped-armor player))
                 (mud.inventory:item-armor (mud.player:player-equipped-armor player))))
+      ;; Show vehicle condition if in a vehicle
+      (when (mud.player:player-vehicle player)
+        (let* ((vehicle-item (mud.player:player-vehicle player))
+               (vehicle-template (mud.world::find-vehicle (mud.inventory:item-name vehicle-item))))
+          (when vehicle-template
+            (let ((current-armor (mud.world::vehicle-armor vehicle-template))
+                  (max-armor (mud.world::vehicle-max-armor vehicle-template)))
+              (format out "Vehicle: ~a (~d/~d armor)~%"
+                      (mud.inventory:item-name vehicle-item)
+                      current-armor max-armor)
+              (when (< current-armor max-armor)
+                (format out "Condition: ~a~%"
+                        (if (zerop current-armor) "BROKEN" "DAMAGED")))))))
       (format out "~%")
       
       ;; Show inventory

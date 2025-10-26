@@ -22,16 +22,18 @@
   type
   description
   (damage 0 :type integer)     ; Damage when ramming
-  (speed 0 :type integer))     ; Speed/momentum bonus
+  (speed 0 :type integer)      ; Speed/momentum bonus
+  (armor 0 :type integer)      ; Armor rating - absorbs damage until exceeded
+  (max-armor 0 :type integer)) ; Maximum armor (for repair purposes)
 
 (defparameter *vehicles* (make-hash-table :test 'equal)
   "Hash table of vehicle name -> vehicle struct")
 
-(defun define-vehicle (name type description &key (damage 0) (speed 0))
+(defun define-vehicle (name type description &key (damage 0) (speed 0) (armor 0))
   "Define a vehicle that can be entered"
   (setf (gethash name *vehicles*)
         (make-vehicle :name name :type type :description description
-                      :damage damage :speed speed)))
+                      :damage damage :speed speed :armor armor :max-armor armor)))
 
 (defun find-vehicle (name)
   "Find a vehicle by name (case-insensitive)"
@@ -46,12 +48,12 @@
   (clrhash *vehicles*)
 
   ;; Define vehicles
-  (define-vehicle "skiff" :water "A small wooden boat that glides across water on its own.")
-  (define-vehicle "boat" :water "A small wooden boat that glides across water on its own." :damage 5 :speed 2)
-  (define-vehicle "eternal wanderer" :water "A small wooden boat that glides across water on its own." :damage 5 :speed 2)
-  (define-vehicle "car" :uber "A sleek, magical carriage that can take you anywhere instantly." :damage 30 :speed 10)
-  (define-vehicle "carriage" :uber "A sleek, magical carriage that can take you anywhere instantly." :damage 30 :speed 10)
-  (define-vehicle "ufo" :air "A shimmering disc of otherworldly metal that defies gravity. It hums with cosmic energy." :damage 50 :speed 20)
+  (define-vehicle "skiff" :water "A small wooden boat that glides across water on its own." :armor 5)
+  (define-vehicle "boat" :water "A small wooden boat that glides across water on its own." :damage 5 :speed 2 :armor 8)
+  (define-vehicle "eternal wanderer" :water "A small wooden boat that glides across water on its own." :damage 5 :speed 2 :armor 8)
+  (define-vehicle "car" :uber "A sleek, magical carriage that can take you anywhere instantly." :damage 30 :speed 10 :armor 25)
+  (define-vehicle "carriage" :uber "A sleek, magical carriage that can take you anywhere instantly." :damage 30 :speed 10 :armor 25)
+  (define-vehicle "ufo" :air "A shimmering disc of otherworldly metal that defies gravity. It hums with cosmic energy." :damage 50 :speed 20 :armor 40)
 
   (define-room 'village-square
                "Village Square"
