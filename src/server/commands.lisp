@@ -113,7 +113,7 @@
                          (progn
                            (incf equipped)
                            (write-crlf stream (wrap message :bright-green))
-                           (announce-to-room player
+                           (mud.server::announce-to-room player
                             (format nil "~a equips ~a."
                                     (wrap (player-name player)
                                      :bright-yellow)
@@ -132,7 +132,7 @@
   (let* ((room-id (player-room player))
          (room (find-room room-id))
          (stream (player-stream player))
-         (items (when room (copy-list (mud.world::room-items room))))
+         (items (when room (copy-list (room-items room))))
          (collected 0))
     (cond
       ((null room)
@@ -142,23 +142,23 @@
        (write-crlf stream (wrap "There is nothing here to take." :bright-red)))
       (t
        (dolist (item items)
-         (let ((target-name (item-name item)))
-           (if (eq (item-type item) :corpse)
-               (let ((corpse-items (loot-corpse item)))
+         (let ((target-name (mud.inventory::item-name item)))
+           (if (eq (mud.inventory::item-type item) :corpse)
+               (let ((corpse-items (mud.combat::loot-corpse item)))
                  (if corpse-items
                      (progn
                        (dolist (corpse-item corpse-items)
-                         (add-to-inventory player corpse-item)
+                         (mud.inventory::add-to-inventory player corpse-item)
                          (incf collected)
-                         (maybe-announce-quest-rewards player))
-                       (remove-item-from-room room-id item)
+                         (mud.server::maybe-announce-quest-rewards player))
+                       (mud.world::remove-item-from-room room-id item)
                        (write-crlf stream
                         (wrap
                          (format nil
                                  "You loot the corpse and take ~d item~:p."
                                  (length corpse-items))
                          :bright-green))
-                       (announce-to-room player
+                       (mud.server::announce-to-room player
                         (format nil "~a loots ~a."
                                 (wrap (player-name player)
                                  :bright-yellow)
@@ -167,18 +167,18 @@
                      (write-crlf stream
                       (wrap "The corpse is empty." :bright-red))))
                (multiple-value-bind (success message)
-                   (grab-item player target-name)
+                   (mud.inventory::grab-item player target-name)
                  (if success
                      (progn
                        (incf collected)
                        (write-crlf stream (wrap message :bright-green))
-                       (announce-to-room player
+                       (mud.server::announce-to-room player
                         (format nil "~a gets ~a."
                                 (wrap (player-name player)
                                  :bright-yellow)
                                 target-name)
                         :include-self nil)
-                       (maybe-announce-quest-rewards player))
+                       (mud.server::maybe-announce-quest-rewards player))
                      (write-crlf stream (wrap message :bright-red)))))))
        (when (zerop collected)
          (write-crlf stream
@@ -304,7 +304,7 @@
                  (write-crlf (player-stream player)
                   (wrap message (if success :bright-green :bright-red)))
                  (if success
-                     (announce-to-room player
+                     (mud.server::announce-to-room player
                       (format nil "~a equips ~a."
                               (wrap (player-name player) :bright-yellow)
                               item-name)
@@ -547,22 +547,22 @@
       ((string-equal item-name "all")
        (handle-get-all player))
       (t
-       (let ((item (find-item-in-room (player-room player) item-name)))
-         (if (and item (eq (item-type item) :corpse))
-             (let ((corpse-items (loot-corpse item)))
+       (let ((item (mud.world::find-item-in-room (player-room player) item-name)))
+         (if (and item (eq (mud.inventory::item-type item) :corpse))
+             (let ((corpse-items (mud.combat::loot-corpse item)))
                (if corpse-items
                    (progn
                      (dolist (corpse-item corpse-items)
-                       (add-to-inventory player corpse-item)
-                       (maybe-announce-quest-rewards player))
-                     (remove-item-from-room (player-room player) item)
+                       (mud.inventory::add-to-inventory player corpse-item)
+                       (mud.server::maybe-announce-quest-rewards player))
+                     (mud.world::remove-item-from-room (player-room player) item)
                      (write-crlf (player-stream player)
                       (wrap
                        (format nil
                                "You loot the corpse and take ~d item~:p."
                                (length corpse-items))
                        :bright-green))
-                     (announce-to-room player
+                     (mud.server::announce-to-room player
                       (format nil "~a loots ~a."
                               (wrap (player-name player) :bright-yellow)
                               item-name)
@@ -570,17 +570,17 @@
                    (write-crlf (player-stream player)
                     (wrap "The corpse is empty." :bright-red))))
              (multiple-value-bind (success message)
-                 (grab-item player item-name)
+                 (mud.inventory::grab-item player item-name)
                (if success
                    (progn
                      (write-crlf (player-stream player)
                       (wrap message :bright-green))
-                     (announce-to-room player
+                     (mud.server::announce-to-room player
                       (format nil "~a gets ~a."
                               (wrap (player-name player) :bright-yellow)
                               item-name)
                       :include-self nil)
-                     (maybe-announce-quest-rewards player))
+                     (mud.server::maybe-announce-quest-rewards player))
                    (write-crlf (player-stream player)
                     (wrap message :bright-red))))))))))
 

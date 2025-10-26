@@ -79,7 +79,7 @@
 (defpackage :mud.inventory
   (:use :cl)
   (:export :make-item
-           :copy-item
+           :duplicate-item
            :item-name
            :item-type
            :item-effect

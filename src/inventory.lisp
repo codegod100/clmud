@@ -87,22 +87,35 @@
 (defun find-item-template (name)
   "Find an item template by name (case-insensitive)"
   (find-if (lambda (item)
-             (string-equal (item-name item) name))
+             (string-equal (mud.inventory::item-name item) name))
            *item-templates*))
+
+(defun duplicate-item (item)
+  "Create a copy of an item"
+  (mud.inventory::make-item :name (mud.inventory::item-name item)
+             :type (mud.inventory::item-type item)
+             :description (mud.inventory::item-description item)
+             :portable (mud.inventory::item-portable item)
+             :damage (mud.inventory::item-damage item)
+             :armor (mud.inventory::item-armor item)
+             :vehicle-type (mud.inventory::item-vehicle-type item)
+             :effect (mud.inventory::item-effect item)
+             :value (mud.inventory::item-value item)
+             :slot (mud.inventory::item-slot item)))
 
 (defun create-item (template-name)
   "Create a new item instance from a template"
   (let ((template (find-item-template template-name)))
     (when template
-      (copy-item template))))
+      (duplicate-item template))))
 
 (defun currency-item-p (item)
-  (string-equal (item-name item) "gold-coins"))
+  (string-equal (mud.inventory::item-name item) "gold-coins"))
 
 (defun add-to-inventory (player item)
   "Add an item to a player's inventory or convert currency to gold."
   (if (currency-item-p item)
-      (let* ((amount (max 1 (item-value item))))
+      (let* ((amount (max 1 (mud.inventory::item-value item))))
         (mud.player:modify-gold player amount)
         (values :gold amount))
       (progn
@@ -124,7 +137,7 @@
 (defun find-in-inventory (player item-name)
   "Find the first item in player's inventory matching the name (supports partial matches)"
   (find-if (lambda (item)
-             (fuzzy-match-item-name (item-name item) item-name))
+             (fuzzy-match-item-name (mud.inventory::item-name item) item-name))
            (mud.player:player-inventory player)))
 
 (defun find-equipped-item (player item-name)
@@ -133,10 +146,10 @@
         (equipped-armor (mud.player:player-equipped-armor player)))
     (cond
       ((and equipped-weapon 
-            (fuzzy-match-item-name (item-name equipped-weapon) item-name))
+            (fuzzy-match-item-name (mud.inventory::item-name equipped-weapon) item-name))
        equipped-weapon)
       ((and equipped-armor 
-            (fuzzy-match-item-name (item-name equipped-armor) item-name))
+            (fuzzy-match-item-name (mud.inventory::item-name equipped-armor) item-name))
        equipped-armor)
       (t nil))))
 
@@ -180,25 +193,25 @@
                   (equipped-armor (mud.player:player-equipped-armor player)))
               ;; Count items by name
               (dolist (item inventory)
-                (incf (gethash (item-name item) item-counts 0)))
+                (incf (gethash (mud.inventory::item-name item) item-counts 0)))
               ;; Display with counts and equipped status
               (maphash (lambda (name count)
                          (let ((template (find-item-template name)))
                            (when template
                              (let ((is-equipped-weapon (and equipped-weapon
-                                                           (string= name (item-name equipped-weapon))))
+                                                           (string= name (mud.inventory::item-name equipped-weapon))))
                                    (is-equipped-armor (and equipped-armor
-                                                          (string= name (item-name equipped-armor))))
-                                   (item-type (item-type template))
-                                   (damage (item-damage template))
-                                   (armor (item-armor template)))
+                                                          (string= name (mud.inventory::item-name equipped-armor))))
+                                   (item-type (mud.inventory::item-type template))
+                                   (damage (mud.inventory::item-damage template))
+                                   (armor (mud.inventory::item-armor template)))
                                ;; Format: name x count [EQUIPPED] - description [+damage/+armor]
                                (format out "  ~a x~d~a - ~a"
                                       name count
                                       (cond (is-equipped-weapon " [EQUIPPED]")
                                             (is-equipped-armor " [EQUIPPED]")
                                             (t ""))
-                                      (item-description template))
+                                      (mud.inventory::item-description template))
                                ;; Add stats if weapon or armor
                                (cond
                                  ((and (eq item-type :weapon) (> damage 0))
@@ -215,21 +228,21 @@
       ((null item)
        (values nil (format nil "You don't have any ~a." item-name)))
 
-      ((not (eq (item-type item) :consumable))
+      ((not (eq (mud.inventory::item-type item) :consumable))
        (values nil (format nil "You can't use ~a." item-name)))
 
       (t
-       (case (item-effect item)
+       (case (mud.inventory::item-effect item)
          (:restore-mana
           (let ((current-mana (mud.player:player-mana player))
                 (max-mana (mud.player:player-max-mana player)))
             (if (>= current-mana max-mana)
                 (values nil "Your mana is already full.")
                 (progn
-                  (mud.player:modify-mana player (item-value item))
-                  (remove-from-inventory player item)
+                  (mud.player:modify-mana player (mud.inventory::item-value item))
+                  (mud.inventory::remove-from-inventory player item)
                   (values t (format nil "You drink the ~a and restore ~d mana."
-                                  item-name (item-value item)))))))
+                                  item-name (mud.inventory::item-value item)))))))
 
          (:restore-health
           (let ((current-health (mud.player:player-health player))
@@ -237,10 +250,10 @@
             (if (>= current-health max-health)
                 (values nil "Your health is already full.")
                 (progn
-                  (mud.player:modify-health player (item-value item))
-                  (remove-from-inventory player item)
+                  (mud.player:modify-health player (mud.inventory::item-value item))
+                  (mud.inventory::remove-from-inventory player item)
                   (values t (format nil "You drink the ~a and restore ~d health."
-                                  item-name (item-value item)))))))
+                                  item-name (mud.inventory::item-value item)))))))
 
          (t
           (values nil (format nil "~a has an unknown effect." item-name))))))))
@@ -252,7 +265,7 @@
       ((null item)
        (values nil (format nil "You don't have any ~a." item-name)))
       (t
-       (remove-from-inventory player item)
+       (mud.inventory::remove-from-inventory player item)
        (mud.world:add-item-to-room (mud.player:player-room player) item)
        (values t (format nil "You drop ~a." item-name))))))
 
@@ -262,8 +275,8 @@
     (cond
       ((null item)
        (values nil (format nil "There is no ~a here." item-name)))
-      ((not (item-portable item))
-       (values nil (format nil "~a is too large to pick up." (item-name item))))
+      ((not (mud.inventory::item-portable item))
+       (values nil (format nil "~a is too large to pick up." (mud.inventory::item-name item))))
       (t
        (mud.world:remove-item-from-room (mud.player:player-room player) item)
        (multiple-value-bind (kind payload)
