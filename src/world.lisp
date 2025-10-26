@@ -117,12 +117,11 @@
                '(("river" . "The water flows swiftly, its depths dark and mysterious. You think you see something glinting on the riverbed...")))
   (define-room 'hidden-cove
                "Hidden Cove"
-               "A secluded cove surrounded by towering cliffs. The water is calm here, crystal clear. Ancient [ruins] peek through the vines on the cliff face, and a narrow [cave entrance] yawns in the rock. A weathered [shipwreck] lies half-submerged near the shore, and [Captain Blackbeard] stands on the beach, looking out to sea with a troubled expression."
+               "A secluded cove surrounded by towering cliffs. The water is calm here, crystal clear. Ancient [ruins] peek through the vines on the cliff face, and a narrow [cave entrance] yawns in the rock. A weathered [shipwreck] lies half-submerged near the shore."
                '((:north :water . riverbank))
                '(("ruins" . "The ruins are covered in the same strange runes you saw on the forest archway. They seem to glow faintly in the moonlight, pulsing with an otherworldly energy.")
                  ("cave entrance" . "The cave is dark and foreboding. Cold air wafts out, carrying whispers of things best left undisturbed. You sense great power - and great danger - within.")
-                 ("shipwreck" . "The remains of a once-proud vessel, now broken and weathered by time. Barnacles cling to its hull, and seaweed drapes from its broken masts.")
-                 ("Captain Blackbeard" . "A grizzled pirate captain with a long black beard and a wicked gleam in his eye. His cutlass gleams in the moonlight, and a treasure map peeks from his coat pocket. He seems to be muttering about lost treasure.")))
+                 ("shipwreck" . "The remains of a once-proud vessel, now broken and weathered by time. Barnacles cling to its hull, and seaweed drapes from its broken masts.")))
   (define-room 'graveyard
                "Graveyard"
                "Ancient [tombstones] lean in the mist, their inscriptions worn by time. The air is still, heavy with the weight of countless souls who have passed through this veil. A faint [ethereal glow] marks the boundary between life and death."
@@ -208,11 +207,16 @@
         (apple-item (mud.inventory::make-item
                      :name "apple"
                      :type :consumable
-                     :description "A perfectly ripe red apple from the village garden. It looks delicious!")))
+                     :description "A perfectly ripe red apple from the village garden. It looks delicious!"))
+        (treasure-map-item (mud.inventory::make-item
+                            :name "treasure-map"
+                            :type :quest-item
+                            :description "An old, weathered treasure map showing the location of Captain Blackbeard's buried gold. The map is marked with an 'X' near the hidden cove, but the exact spot seems to be in the ancient grove.")))
     (add-item-to-room 'village-square car-item)
     (add-item-to-room 'riverbank skiff-item)
     (add-item-to-room 'graveyard ufo-item)
-    (add-item-to-room 'village-garden apple-item)))
+    (add-item-to-room 'village-garden apple-item)
+    (add-item-to-room 'ancient-grove treasure-map-item)))
 
 (defun find-room (room-id)
   (gethash room-id *rooms*))

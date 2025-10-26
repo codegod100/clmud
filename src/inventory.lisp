@@ -32,6 +32,11 @@
               :effect :restore-health
               :value 30
               :description "A crimson elixir that restores 30 health.")
+   (make-item :name "healing-potion"
+              :type :consumable
+              :effect :restore-health
+              :value 40
+              :description "A powerful healing potion that restores 40 health.")
    (make-item :name "greater-mana-potion"
               :type :consumable
               :effect :restore-mana
@@ -100,7 +105,12 @@
               :type :armor
               :armor 3
               :slot :armor
-              :description "A tricorn hat with a feather. It makes you feel more dashing and slightly more protected."))
+              :description "A tricorn hat with a feather. It makes you feel more dashing and slightly more protected.")
+   (make-item :name "wisdom-scroll"
+              :type :consumable
+              :effect :restore-mana
+              :value 30
+              :description "An ancient scroll containing wisdom. Reading it restores 30 mana."))
   "List of item templates")
 
 (defun find-item-template (name)

@@ -291,11 +291,20 @@
 
 (defun %serialize-inventory (player)
   (let* ((items (copy-list (player-inventory player)))
-         (serialized (mapcar #'%serialize-item items))
+         ;; Add equipped items to inventory if they're not already there
+         (all-items (let ((result items))
+                      (when (and (player-equipped-weapon player)
+                                 (not (member (player-equipped-weapon player) items :test #'eq)))
+                        (push (player-equipped-weapon player) result))
+                      (when (and (player-equipped-armor player)
+                                 (not (member (player-equipped-armor player) items :test #'eq)))
+                        (push (player-equipped-armor player) result))
+                      result))
+         (serialized (mapcar #'%serialize-item all-items))
          (weapon-index (and (player-equipped-weapon player)
-                            (position (player-equipped-weapon player) items :test #'eq)))
+                            (position (player-equipped-weapon player) all-items :test #'eq)))
          (armor-index (and (player-equipped-armor player)
-                           (position (player-equipped-armor player) items :test #'eq))))
+                           (position (player-equipped-armor player) all-items :test #'eq))))
     (values serialized weapon-index armor-index)))
 
 (defun %restore-inventory (player data weapon-index armor-index)
@@ -304,7 +313,14 @@
     (when (and (integerp weapon-index) (<= 0 weapon-index) (< weapon-index (length items)))
       (setf (player-equipped-weapon player) (nth weapon-index items)))
     (when (and (integerp armor-index) (<= 0 armor-index) (< armor-index (length items)))
-      (setf (player-equipped-armor player) (nth armor-index items)))))
+      (setf (player-equipped-armor player) (nth armor-index items)))
+    ;; Remove equipped items from inventory to avoid duplicates
+    (when (player-equipped-weapon player)
+      (setf (player-inventory player) 
+            (remove (player-equipped-weapon player) (player-inventory player) :test #'eq)))
+    (when (player-equipped-armor player)
+      (setf (player-inventory player) 
+            (remove (player-equipped-armor player) (player-inventory player) :test #'eq)))))
 
 (defun show-simple-status (player)
   "Show basic player status (used for auto-status updates)"

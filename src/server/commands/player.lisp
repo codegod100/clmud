@@ -165,6 +165,8 @@
 (defun get-quest-offer-dialogue (mob-id quest-id)
   "Get dialogue when offering a quest"
   (cond
+    ((eq quest-id :apple-picking)
+     (format nil "The Village Elder looks up at you with kind eyes. 'Ah, young adventurer! I could use your help. I need a fresh apple from the garden for my evening tea. It's a simple task, but I'm too old to make the journey myself. Would you be so kind as to fetch one for me? (Type 'accept quest' or 'decline quest')'"))
     ((eq quest-id :pirate-treasure)
      (format nil "Captain Blackbeard turns to you with a troubled look. 'Ahoy there, matey! I'm in a right pickle, I am. Me treasure map has gone missing, and without it, I'll never find me buried gold! If ye could help an old pirate out and find that map, I'd be mighty grateful. There's a reward in it for ye! Would ye like to help me? (Type 'accept quest' or 'decline quest')'"))
     (t
@@ -173,18 +175,22 @@
 (defun get-quest-progress-dialogue (mob-id quest-id)
   "Get dialogue when quest is in progress"
   (cond
+    ((eq quest-id :apple-picking)
+     "The Village Elder smiles warmly. 'Have you found that apple yet, dear? I'm looking forward to my evening tea.'")
     ((eq quest-id :pirate-treasure)
      "Captain Blackbeard looks at you hopefully. 'Have ye found me treasure map yet, matey? I'm counting on ye!'")
     (t
      (format nil "~a asks about your progress on their quest." (mud.mob::mob-name (mud.mob::find-mob-template mob-id))))))
 
 (defun get-quest-completion-dialogue (mob-id quest-id)
-  "Get dialogue when quest is completed"
+  "Get dialogue when quest is completed (post-completion, not the reward message)"
   (cond
+    ((eq quest-id :apple-picking)
+     "The Village Elder smiles fondly at you. 'Thank you again for that apple, young one. It made for a wonderful evening tea.'")
     ((eq quest-id :pirate-treasure)
-     "Captain Blackbeard grins broadly. 'Ah, the one who found me map! Ye've done me a great service, matey. May the winds be ever in yer favor!'")
+     "Captain Blackbeard gives you a friendly nod. 'Ahoy there, friend! Thanks again for finding me treasure map. Ye're always welcome aboard me ship!'")
     (t
-     (format nil "~a thanks you for completing their quest." (mud.mob::mob-name (mud.mob::find-mob-template mob-id))))))
+     (format nil "~a greets you warmly." (mud.mob::mob-name (mud.mob::find-mob-template mob-id))))))
 
 (define-command (("talk") command-talk) (player rest)
   (if (zerop (length rest))

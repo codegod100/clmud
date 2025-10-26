@@ -109,9 +109,9 @@
   (when (mob-loot-table mob)
     ;; For now, just return all items in the loot table
     ;; Could add probability/randomness later
-    (mapcar (lambda (item-name)
-              (mud.inventory::create-item item-name))
-            (mob-loot-table mob))))
+    (remove nil (mapcar (lambda (item-name)
+                          (mud.inventory::create-item item-name))
+                        (mob-loot-table mob)))))
 
 (defun initialize-mobs ()
   "Initialize mob templates and clear room mobs"
@@ -175,6 +175,18 @@
                        '("guardian-axe" "nature-amulet")
                        :aggressive t)
 
+  ;; Village Elder - Quest giver for apple quest
+  (define-mob-template :village-elder
+                       "Village Elder"
+                       "A wise old woman with kind eyes and weathered hands. She sits peacefully in the village square, watching over the community with gentle authority."
+                       50    ; max-health
+                       5     ; damage
+                       2     ; armor
+                       50    ; xp-reward
+                       '("healing-potion" "wisdom-scroll")
+                       :aggressive nil
+                       :quest-giver :apple-picking)
+
   ;; Captain Blackbeard - Pirate boss in the cove
   (define-mob-template :captain-blackbeard
                        "Captain Blackbeard"
@@ -193,6 +205,7 @@
   (spawn-mob :skeleton 'mud.world::graveyard)
   (spawn-mob :bandit 'mud.world::moonlit-lane)
   (spawn-mob :forest-guardian 'mud.world::ancient-grove)
+  (spawn-mob :village-elder 'mud.world::village-square)
   (spawn-mob :captain-blackbeard 'mud.world::hidden-cove))
 
 ;;; Mob Movement System
