@@ -15,6 +15,11 @@
 (defparameter *persistence-running* nil)
 (defparameter *persistence-lock* (make-mutex :name "persistence-lock"))
 
+;; Mob movement system
+(defparameter *mob-movement-interval* 10) ; Check every 10 seconds
+(defparameter *mob-movement-thread* nil)
+(defparameter *mob-movement-running* nil)
+
 (defun resolve-state-file-path ()
   (let ((override (sb-ext:posix-getenv "MUD_STATE_FILE")))
     (handler-case
@@ -113,6 +118,60 @@
       (when (and *persistence-running* (not signaled))
         (save-game-state :reason :periodic)))))
 
+(defun announce-to-room-by-id (room-id message &key (exclude nil))
+  "Announce a message to all players in a specific room"
+  (with-mutex (*clients-lock*)
+    (dolist (client *clients*)
+      (when (and (eq (player-room client) room-id)
+                 (not (member client exclude)))
+        (ignore-errors (write-crlf (player-stream client) message))))))
+
+(defun announce-mob-movement (mob old-room-id new-room-id)
+  "Announce mob movement to players in affected rooms"
+  (let ((mob-name (mud.mob::mob-name mob))
+        (old-room (mud.world::find-room old-room-id))
+        (new-room (mud.world::find-room new-room-id)))
+    (when old-room
+      (announce-to-room-by-id old-room-id
+        (format nil "~a wanders away." (mud.ansi::wrap mob-name :bright-red))
+        :exclude nil))
+    (when new-room
+      (announce-to-room-by-id new-room-id
+        (format nil "~a wanders in." (mud.ansi::wrap mob-name :bright-red))
+        :exclude nil))))
+
+(defun mob-movement-loop ()
+  (loop
+    (unless *mob-movement-running*
+      (return))
+    (sleep *mob-movement-interval*)
+    (unless *mob-movement-running*
+      (return))
+    (handler-case
+        (let ((movements (mud.mob::process-all-mob-movements)))
+          (when movements
+            (dolist (movement movements)
+              (destructuring-bind (mob old-room new-room) movement
+                (announce-mob-movement mob old-room new-room)))))
+      (error (err)
+        (server-log "Error in mob movement loop: ~a" err)))))
+
+(defun start-mob-movement-loop ()
+  (unless *mob-movement-thread*
+    (setf *mob-movement-running* t)
+    (setf *mob-movement-thread*
+          (make-thread #'mob-movement-loop :name "mud-mob-movement"))))
+
+(defun stop-mob-movement-loop ()
+  (when *mob-movement-thread*
+    (setf *mob-movement-running* nil)
+    (handler-case
+        (join-thread *mob-movement-thread*)
+      (error (err)
+        (server-log "Failed to join mob movement thread: ~a" err)))
+    (setf *mob-movement-thread* nil))
+  (setf *mob-movement-running* nil))
+
 
 (defun client-loop (socket stream)
   (let ((player nil) (graceful nil))
@@ -188,6 +247,7 @@
   (load-game-state)
   (setf *running* t)
   (start-persistence-loop)
+  (start-mob-movement-loop)
   (let ((socket (make-server-socket port)))
     (setf *listener* socket)
     (setf *listener-thread*
@@ -202,6 +262,7 @@
     (let ((was-running *running*))
       (setf *running* nil)
       (stop-persistence-loop)
+      (stop-mob-movement-loop)
       (when *listener*
         (ignore-errors (close *listener*))
         (setf *listener* nil))

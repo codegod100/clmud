@@ -13,6 +13,9 @@
   xp-reward       ; XP given when killed
   loot-table      ; List of item names that can drop
   aggressive      ; If T, mob attacks players on sight
+  current-room    ; Current room ID where mob is located
+  last-move-time  ; Universal time of last movement
+  move-interval   ; Random interval between movements (in seconds)
   )
 
 (defparameter *mob-templates* (make-hash-table :test #'eq)
@@ -21,7 +24,7 @@
 (defparameter *room-mobs* (make-hash-table :test #'eq)
   "Hash table of room-id -> list of mob instances in that room")
 
-(defun define-mob-template (id name description max-health damage armor xp-reward loot-table &key (aggressive nil))
+(defun define-mob-template (id name description max-health damage armor xp-reward loot-table &key (aggressive nil) (move-interval-min 30) (move-interval-max 120))
   "Define a mob template"
   (setf (gethash id *mob-templates*)
         (make-mob :id id
@@ -33,7 +36,10 @@
                   :armor armor
                   :xp-reward xp-reward
                   :loot-table loot-table
-                  :aggressive aggressive)))
+                  :aggressive aggressive
+                  :current-room nil
+                  :last-move-time 0
+                  :move-interval (+ move-interval-min (random (- move-interval-max move-interval-min))))))
 
 (defun find-mob-template (id)
   "Find a mob template by ID"
@@ -47,6 +53,12 @@
       (let ((mob-instance (copy-mob template)))
         ;; Reset health to max
         (setf (mob-health mob-instance) (mob-max-health mob-instance))
+        ;; Set current room and initialize movement tracking
+        (setf (mob-current-room mob-instance) room-id)
+        (setf (mob-last-move-time mob-instance) (get-universal-time))
+        ;; Generate new random move interval
+        (setf (mob-move-interval mob-instance) 
+              (+ (mob-move-interval template) (random 60)))
         ;; Add to room
         (push mob-instance (gethash room-id *room-mobs*))
         mob-instance))))
@@ -154,3 +166,67 @@
   (spawn-mob :skeleton 'mud.world::graveyard)
   (spawn-mob :bandit 'mud.world::moonlit-lane)
   (spawn-mob :forest-guardian 'mud.world::ancient-grove))
+
+;;; Mob Movement System
+
+(defun get-adjacent-rooms (room-id)
+  "Get list of room IDs adjacent to the given room"
+  (let ((room (mud.world::find-room room-id)))
+    (when room
+      (mapcar #'cdr (mud.world::room-exits room)))))
+
+(defun move-mob-to-room (mob new-room-id)
+  "Move a mob from its current room to a new room"
+  (let ((old-room-id (mob-current-room mob)))
+    (when (and old-room-id new-room-id)
+      ;; Remove from old room
+      (setf (gethash old-room-id *room-mobs*)
+            (remove mob (gethash old-room-id *room-mobs*) :test #'eq))
+      ;; Add to new room
+      (push mob (gethash new-room-id *room-mobs*))
+      ;; Update mob's current room
+      (setf (mob-current-room mob) new-room-id)
+      ;; Update last move time
+      (setf (mob-last-move-time mob) (get-universal-time))
+      ;; Generate new random move interval
+      (setf (mob-move-interval mob) 
+            (+ 30 (random 90))) ; 30-120 seconds
+      t)))
+
+(defun should-mob-move-p (mob)
+  "Check if a mob should move based on its movement interval"
+  (let ((current-time (get-universal-time))
+        (last-move (mob-last-move-time mob))
+        (interval (mob-move-interval mob)))
+    (>= (- current-time last-move) interval)))
+
+(defun get-random-adjacent-room (room-id)
+  "Get a random adjacent room ID, or nil if none available"
+  (let ((adjacent-rooms (get-adjacent-rooms room-id)))
+    (when adjacent-rooms
+      (nth (random (length adjacent-rooms)) adjacent-rooms))))
+
+(defun process-mob-movement (mob)
+  "Process movement for a single mob if it's time to move"
+  (when (and (mob-alive-p mob)
+             (should-mob-move-p mob)
+             (mob-current-room mob))
+    (let ((old-room-id (mob-current-room mob))
+          (new-room-id (get-random-adjacent-room (mob-current-room mob))))
+      (when new-room-id
+        (move-mob-to-room mob new-room-id)
+        ;; Return the mob and rooms for announcement
+        (values mob old-room-id new-room-id)))))
+
+(defun process-all-mob-movements ()
+  "Process movement for all mobs in the game"
+  (let ((movements nil))
+    (maphash (lambda (room-id mobs)
+               (declare (ignore room-id))
+               (dolist (mob mobs)
+                 (multiple-value-bind (moved-mob old-room new-room)
+                     (process-mob-movement mob)
+                   (when moved-mob
+                     (push (list moved-mob old-room new-room) movements)))))
+             *room-mobs*)
+    movements))

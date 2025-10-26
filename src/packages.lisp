@@ -133,7 +133,12 @@
            :mob-max-health
            :mob-damage
            :mob-armor
-           :mob-xp-reward))
+           :mob-xp-reward
+           :mob-current-room
+           :mob-last-move-time
+           :mob-move-interval
+           :process-all-mob-movements
+           :move-mob-to-room))
 
 (defpackage :mud.combat
   (:use :cl)
