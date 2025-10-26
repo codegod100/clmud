@@ -18,6 +18,7 @@ alwaysApply: true
 ## Testing
 
 - **ALWAYS create new test files in the `tests/` directory** - never in the project root
+- **KEEP test files** - Don't delete them after testing; they serve as documentation and regression tests
 - Use the organized test structure:
   - `tests/unit/` - Unit tests for individual components
   - `tests/commands/` - Command-specific tests  

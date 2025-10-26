@@ -23,6 +23,7 @@
            :direction-delta
            :explore-map
            :generate-map
+           :generate-artistic-map
            :define-vehicle
            :find-vehicle
            :vehicle-armor

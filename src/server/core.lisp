@@ -359,8 +359,6 @@
     (if room
         (let ((stream (player-stream player)))
           (write-crlf stream
-           (wrap (generate-map room-id vehicle-type) :bright-cyan))
-          (write-crlf stream
            (wrap (format nil "~a" (room-name room)) :bold :bright-cyan))
           (if vehicle
               ;; Player is in a vehicle - show window view

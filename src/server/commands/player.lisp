@@ -102,7 +102,7 @@
   (write-crlf (player-stream player)
    (wrap "Commands:" :bright-yellow))
   (write-crlf (player-stream player)
-   "  Movement: look (l), go <dir> (n/s/e/w/u/d/ne/nw/se/sw), enter <vehicle>, exit, uber <location>")
+   "  Movement: look (l), map, go <dir> (n/s/e/w/u/d/ne/nw/se/sw), enter <vehicle>, exit, uber <location>")
   (write-crlf (player-stream player) "  Social: say <text> (local), chat <text> (global), who")
   (write-crlf (player-stream player)
    "  Combat: attack <mob>, cast <spell> <target>, stats, spells")
