@@ -363,10 +363,9 @@
           (if vehicle
               ;; Player is in a vehicle - show window view
               (write-crlf stream 
-               (wrap (format nil "Out the window of your ~a you see: ~a" 
-                             (mud.inventory:item-name vehicle)
-                             (colorize-facets (room-description room)))
-                     :bright-cyan))
+               (format nil "Out the window of your ~a you see: ~a" 
+                       (mud.inventory:item-name vehicle)
+                       (colorize-facets (room-description room))))
               ;; Player is on foot - show normal room description
               (write-crlf stream (colorize-facets (room-description room))))
           (write-crlf stream "")

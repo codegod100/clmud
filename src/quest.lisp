@@ -116,8 +116,8 @@
         (dolist (quest-data completed-quests)
           (let ((quest (first quest-data))
                 (leveled-up (second quest-data)))
-            (mud.ansi::write-crlf stream
+            (mud.server::write-crlf stream
              (mud.ansi::wrap (quest-reward-text quest) :bright-green))
             (when leveled-up
-              (mud.ansi::write-crlf stream
+              (mud.server::write-crlf stream
                (mud.ansi::wrap "You have gained a level!" :bright-yellow)))))))))
