@@ -1,5 +1,3 @@
-#!/usr/bin/env sbcl --script
-
 ;; Main test runner for the CLMUD project
 ;; This script runs all tests in the proper order and provides a unified interface
 

@@ -1,4 +1,4 @@
 (in-package :mud.server)
 
 ;; Load all command modules
-(load "src/server/commands/package.lisp")
+(load (merge-pathnames "commands/package.lisp" *load-truename*))

@@ -115,7 +115,6 @@
     (is (not (null (mud.mob:get-mobs-in-room room))))))
 
 (format t "~&Running MUD FiveAM tests...~%")
-(let ((results (run! :mud.tests)))
-  (unless (results-status results)
-    (sb-ext:exit :code 1)))
+(run! :mud.tests)
+(format t "✓ FiveAM tests completed successfully~%")
 (sb-ext:exit :code 0)

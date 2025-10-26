@@ -1,22 +1,20 @@
-#!/usr/bin/env sbcl --script
-
 ;; Load required packages first
 (require :sb-bsd-sockets)
 (require :asdf)
 
 ;; Load the MUD system
-(load "src/packages.lisp")
-(load "src/ansi.lisp")
-(load "src/player.lisp")
-(load "src/inventory.lisp")
-(load "src/merchant.lisp")
-(load "src/world.lisp")
-(load "src/mob.lisp")
-(load "src/combat.lisp")
-(load "src/quest.lisp")
-(load "src/server/core.lisp")
-(load "src/server/commands.lisp")
-(load "src/server/runtime.lisp")
+(load "../src/packages.lisp")
+(load "../src/ansi.lisp")
+(load "../src/player.lisp")
+(load "../src/inventory.lisp")
+(load "../src/merchant.lisp")
+(load "../src/world.lisp")
+(load "../src/mob.lisp")
+(load "../src/combat.lisp")
+(load "../src/quest.lisp")
+(load "../src/server/core.lisp")
+(load "../src/server/commands.lisp")
+(load "../src/server/runtime.lisp")
 
 ;; Initialize the world
 (mud.world:initialize-world)

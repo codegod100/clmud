@@ -1,10 +1,10 @@
 (in-package :mud.server)
 
 ;; Load all command modules
-(load "src/server/commands/core.lisp")
-(load "src/server/commands/movement.lisp")
-(load "src/server/commands/combat.lisp")
-(load "src/server/commands/inventory.lisp")
-(load "src/server/commands/trade.lisp")
-(load "src/server/commands/vehicle.lisp")
-(load "src/server/commands/player.lisp")
+(load (merge-pathnames "core.lisp" *load-truename*))
+(load (merge-pathnames "movement.lisp" *load-truename*))
+(load (merge-pathnames "combat.lisp" *load-truename*))
+(load (merge-pathnames "inventory.lisp" *load-truename*))
+(load (merge-pathnames "trade.lisp" *load-truename*))
+(load (merge-pathnames "vehicle.lisp" *load-truename*))
+(load (merge-pathnames "player.lisp" *load-truename*))
