@@ -113,7 +113,15 @@
               :type :consumable
               :effect :restore-mana
               :value 30
-              :description "An ancient scroll containing wisdom. Reading it restores 30 mana."))
+              :description "An ancient scroll containing wisdom. Reading it restores 30 mana.")
+   ;; Vehicles
+   (make-item :name "motorcycle"
+              :type :vehicle
+              :vehicle-type :ground
+              :portable nil
+              :damage 15
+              :armor 12
+              :description "A sleek black motorcycle with chrome accents. The engine rumbles with power."))
   "List of item templates")
 
 (defun find-item-template (name)

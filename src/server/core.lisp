@@ -259,13 +259,15 @@
         (return-from handle-look-at nil)))
     (let ((mob (find-mob-in-room (player-room player) target-name)))
       (when mob
-        (write-crlf stream
-         (wrap
-          (format nil "~a: ~a~%Health: ~d/~d  Damage: ~d  Armor: ~d"
-                  (mob-name mob) (mob-description mob)
-                  (mob-health mob) (mob-max-health mob)
-                  (mob-damage mob) (mob-armor mob))
-          :bright-red))
+        (let ((vehicle (mud.mob::mob-vehicle mob)))
+          (write-crlf stream
+           (wrap
+            (format nil "~a: ~a~%Health: ~d/~d  Damage: ~d  Armor: ~d~@[~%Vehicle: ~a~]"
+                    (mob-name mob) (mob-description mob)
+                    (mob-health mob) (mob-max-health mob)
+                    (mob-damage mob) (mob-armor mob)
+                    vehicle)
+            :bright-red)))
         (return-from handle-look-at nil)))
     (let ((facet (find-facet-in-room (player-room player) target-name)))
       (when facet
@@ -395,7 +397,13 @@
           (let ((mobs (get-mobs-in-room (player-room player))))
             (when mobs
               (write-crlf stream
-               (wrap (format nil "Mobs: ~{~a~^, ~}" (mapcar #'mob-name mobs))
+               (wrap (format nil "Mobs: ~{~a~^, ~}" 
+                            (mapcar (lambda (mob)
+                                      (let ((vehicle (mud.mob::mob-vehicle mob)))
+                                        (if vehicle
+                                            (format nil "~a [on ~a]" (mud.mob::mob-name mob) vehicle)
+                                            (mud.mob::mob-name mob))))
+                                    mobs))
                 :bright-red)))
           ;; Check for aggressive mobs and attack if necessary
           (let ((aggressive-mobs (mud.mob::get-aggressive-mobs-in-room (player-room player))))
@@ -584,13 +592,13 @@
                 (progn
                   (write-crlf stream
                    (wrap
-                    (format nil "~a attacks your ~a, destroying it! You take ~d damage!"
+                    (format nil "~a attacks your ~a, severely damaging it! You take ~d damage!"
                             mob-name (mud.inventory::item-name (mud.player::player-vehicle player)) excess-damage)
                     :bright-red))
                   (mud.player::modify-health player (- excess-damage))
-                  ;; Remove player from broken vehicle
-                  (mud.world::add-item-to-room (mud.player::player-room player) (mud.player::player-vehicle player))
-                  (setf (mud.player::player-vehicle player) nil)
+                  ;; Vehicle is now broken but player stays in it
+                  (write-crlf stream
+                   (wrap "Your vehicle is now broken! You'll need to exit and repair it before using it again." :bright-yellow))
                   ;; Show status after taking damage
                   (show-player-status player))
                 ;; Vehicle absorbed all damage
@@ -683,6 +691,15 @@
             (format nil "~a dropped: ~{~a~^, ~}" (mob-name mob)
                     (mapcar #'item-name loot))
             :bright-yellow))))
+      ;; Drop vehicle if mob had one
+      (let ((vehicle (mud.mob::mob-vehicle mob)))
+        (when vehicle
+          (let ((vehicle-item (mud.inventory::create-item vehicle)))
+            (when vehicle-item
+              (add-item-to-room (player-room player) vehicle-item)
+              (write-crlf (player-stream player)
+               (wrap (format nil "~a's ~a is left behind!" (mob-name mob) vehicle)
+                     :bright-cyan))))))
       (mud.mob::end-combat mob) ; End combat when mob dies
       (remove-mob-from-room (player-room player) mob) t)
      (t
@@ -702,13 +719,13 @@
                   (progn
                     (write-crlf (player-stream player)
                      (wrap
-                      (format nil "~a attacks your ~a, destroying it! You take ~d damage!"
+                      (format nil "~a attacks your ~a, severely damaging it! You take ~d damage!"
                               (mob-name mob) (mud.inventory:item-name (player-vehicle player)) excess-damage)
                       :bright-red))
                     (modify-health player (- excess-damage))
-                    ;; Remove player from broken vehicle
-                    (mud.world:add-item-to-room (player-room player) (player-vehicle player))
-                    (setf (player-vehicle player) nil)
+                    ;; Vehicle is now broken but player stays in it
+                    (write-crlf (player-stream player)
+                     (wrap "Your vehicle is now broken! You'll need to exit and repair it before using it again." :bright-yellow))
                     ;; Show status after taking damage
                     (show-player-status player))
                   ;; Vehicle absorbed all damage

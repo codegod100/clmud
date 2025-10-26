@@ -60,13 +60,14 @@
     (cdr pair)))
 
 (defun wrap (text &rest styles)
-  (let ((reset (or (code :reset) "")))
+  (let ((reset (or (code :reset) ""))
+        (text-str (or text "")))
     (with-output-to-string (out)
       (dolist (style styles)
         (let ((seq (code style)))
           (when (and seq (plusp (length seq)))
             (write-string seq out))))
-      (write-string text out)
+      (write-string text-str out)
       (write-string reset out))))
 
 (defun strip (text)

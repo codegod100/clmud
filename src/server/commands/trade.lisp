@@ -39,9 +39,19 @@
          (write-crlf stream
           (wrap (format nil "Sold ~d item~:p for ~d gold total." sold-count total-gold-earned) :bright-cyan))
 
-         (when failed-items
-           (write-crlf stream
-            (wrap (format nil "Could not sell: ~{~a~^, ~}" failed-items) :bright-yellow)))
+                  (when failed-items
+                    (let ((item-counts (make-hash-table :test #'equal)))
+                      (dolist (item-name failed-items)
+                        (incf (gethash item-name item-counts 0)))
+                      (let ((counted-items nil))
+                        (maphash (lambda (name count)
+                                   (push (if (> count 1)
+                                             (format nil "~a x~d" name count)
+                                             name)
+                                         counted-items))
+                                 item-counts)
+                        (write-crlf stream
+                         (wrap (format nil "Could not sell: ~{~a~^, ~}" (nreverse counted-items)) :bright-yellow)))))
 
          (write-crlf stream
           (wrap (format nil "Gold now: ~d" (mud.player:player-gold player)) :bright-cyan))

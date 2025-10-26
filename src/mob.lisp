@@ -21,6 +21,7 @@
   last-attack-time ; Universal time of last attack
   attack-interval ; Interval between attacks (in seconds)
   quest-giver     ; Quest ID this mob can give (nil if not a quest giver)
+  vehicle         ; Vehicle the mob is using (nil if none)
   )
 
 (defparameter *mob-templates* (make-hash-table :test #'eq)
@@ -29,7 +30,7 @@
 (defparameter *room-mobs* (make-hash-table :test #'eq)
   "Hash table of room-id -> list of mob instances in that room")
 
-(defun define-mob-template (id name description max-health damage armor xp-reward loot-table &key (aggressive nil) (move-interval-min 30) (move-interval-max 120) (quest-giver nil))
+(defun define-mob-template (id name description max-health damage armor xp-reward loot-table &key (aggressive nil) (move-interval-min 30) (move-interval-max 120) (quest-giver nil) (vehicle nil))
   "Define a mob template"
   (setf (gethash id *mob-templates*)
         (make-mob :id id
@@ -49,7 +50,8 @@
                   :combat-target nil
                   :last-attack-time 0
                   :attack-interval 3
-                  :quest-giver quest-giver)))
+                  :quest-giver quest-giver
+                  :vehicle vehicle)))
 
 (defun find-mob-template (id)
   "Find a mob template by ID"
@@ -157,13 +159,14 @@
   ;; Bandit - human enemy with decent loot
   (define-mob-template :bandit
                        "a bandit"
-                       "A rough-looking brigand wearing leather armor and carrying a well-maintained sword."
+                       "A rough-looking brigand wearing leather armor and carrying a well-maintained sword. A sleek black motorcycle sits nearby."
                        60    ; max-health
                        18    ; damage
                        8     ; armor
                        125   ; xp-reward
-                       '("steel-sword" "leather-armor" "gold-coins")
-                       :aggressive nil)
+                       '("steel-sword" "leather-armor" "gold-coins" "motorcycle")
+                       :aggressive nil
+                       :vehicle "motorcycle")
 
   ;; Boss: Forest Guardian - tough enemy
   (define-mob-template :forest-guardian
@@ -211,17 +214,32 @@
 
 ;;; Mob Movement System
 
-(defun get-adjacent-rooms (room-id)
-  "Get list of room IDs adjacent to the given room"
-  (let ((room (mud.world::find-room room-id)))
+(defun get-adjacent-rooms (room-id &optional mob)
+  "Get list of room IDs adjacent to the given room that the mob can access"
+  (let ((room (mud.world::find-room room-id))
+        (vehicle-type (when mob (mob-vehicle mob))))
     (when room
-      (mapcar (lambda (exit)
-                (let ((rest-of-entry (cdr exit)))
-                  ;; Handle typed exits: (:direction :type . room-id)
-                  (if (and (consp rest-of-entry) (keywordp (car rest-of-entry)))
-                      (cdr rest-of-entry)  ; (:type . room-id) -> room-id
-                      rest-of-entry)))     ; (room-id) -> room-id
-              (mud.world::room-exits room)))))
+      (remove nil
+              (mapcar (lambda (exit)
+                        (let ((rest-of-entry (cdr exit)))
+                          ;; Handle typed exits: (:direction :type . room-id)
+                          (if (and (consp rest-of-entry) (keywordp (car rest-of-entry)))
+                              ;; Typed exit - check if mob's vehicle can access it
+                              (let ((exit-type (car rest-of-entry)))
+                                (cond
+                                  ;; Pedestrian exits - accessible to all mobs
+                                  ((eq exit-type :pedestrian)
+                                   (cdr rest-of-entry))
+                                  ;; Ground exits - accessible to mobs with ground vehicles
+                                  ((and (eq exit-type :ground) vehicle-type
+                                        (string-equal vehicle-type "motorcycle"))
+                                   (cdr rest-of-entry))
+                                  ;; Other vehicle types - only if mob has matching vehicle
+                                  ((and vehicle-type (string-equal vehicle-type (string-downcase (symbol-name exit-type))))
+                                   (cdr rest-of-entry))))
+                              ;; Simple exit - always accessible to mobs
+                              rest-of-entry)))
+                      (mud.world::room-exits room))))))
 
 (defun move-mob-to-room (mob new-room-id)
   "Move a mob from its current room to a new room"
@@ -249,9 +267,9 @@
         (interval (mob-move-interval mob)))
     (>= (- current-time last-move) interval)))
 
-(defun get-random-adjacent-room (room-id)
+(defun get-random-adjacent-room (room-id &optional mob)
   "Get a random adjacent room ID, or nil if none available"
-  (let ((adjacent-rooms (get-adjacent-rooms room-id)))
+  (let ((adjacent-rooms (get-adjacent-rooms room-id mob)))
     (when adjacent-rooms
       (nth (random (length adjacent-rooms)) adjacent-rooms))))
 
@@ -261,7 +279,7 @@
              (should-mob-move-p mob)
              (mob-current-room mob))
     (let ((old-room-id (mob-current-room mob))
-          (new-room-id (get-random-adjacent-room (mob-current-room mob))))
+          (new-room-id (get-random-adjacent-room (mob-current-room mob) mob)))
       (when new-room-id
         (move-mob-to-room mob new-room-id)
         ;; Return the mob and rooms for announcement

@@ -118,7 +118,7 @@
   (write-crlf (player-stream player)
    "  Trade: shop [merchant], buy <item> [from <merchant>], sell <item> [to <merchant>], sell all [to <merchant>]")
   (write-crlf (player-stream player)
-   "  Quests: quest, accept quest, decline quest, quest-reset <quest>, status")
+   "  Quests: quest, quest-reset <quest>, status")
   (write-crlf (player-stream player)
    "  Other: help, quit, save, . (repeat last command), locate <mob>, suicide (test death)")
   )
@@ -155,9 +155,22 @@
        (let ((quest-state (mud.quest::get-player-quest-data player quest-giver)))
          (cond
            ((eq quest-state :not-started)
+            ;; Auto-start quest and give offer dialogue
+            (mud.quest::start-quest player quest-giver)
             (get-quest-offer-dialogue mob-id quest-giver))
            ((eq quest-state :in-progress)
-            (get-quest-progress-dialogue mob-id quest-giver))
+            ;; Check if quest is complete (player has required item)
+            (multiple-value-bind (completed leveled-up quest)
+                (mud.quest::check-quest-completion player quest-giver)
+              (if completed
+                  (progn
+                    ;; Quest completed! Show completion dialogue and level up message
+                    (let ((completion-dialogue (get-quest-completion-dialogue mob-id quest-giver)))
+                      (if leveled-up
+                          (format nil "~a~%~%You have gained a level!" completion-dialogue)
+                          completion-dialogue)))
+                  ;; Quest still in progress
+                  (get-quest-progress-dialogue mob-id quest-giver))))
            ((eq quest-state :completed)
             (get-quest-completion-dialogue mob-id quest-giver)))))
       ;; Captain Blackbeard specific dialogue (fallback for non-quest-giver logic)
@@ -165,9 +178,18 @@
        (let ((quest-state (mud.quest::get-player-quest-data player :pirate-treasure)))
          (cond
            ((eq quest-state :not-started)
+            ;; Auto-start quest
+            (mud.quest::start-quest player :pirate-treasure)
             "Captain Blackbeard turns to you with a troubled look. 'Ahoy there, matey! I'm in a right pickle, I am. Me treasure map has gone missing, and without it, I'll never find me buried gold! If ye could help an old pirate out and find that map, I'd be mighty grateful. There's a reward in it for ye!'")
            ((eq quest-state :in-progress)
-            "Captain Blackbeard looks at you hopefully. 'Have ye found me treasure map yet, matey? I'm counting on ye!'")
+            ;; Check if quest is complete
+            (multiple-value-bind (completed leveled-up quest)
+                (mud.quest::check-quest-completion player :pirate-treasure)
+              (if completed
+                  (if leveled-up
+                      "Captain Blackbeard's eyes light up! 'Ah, me treasure map! Ye've found it! Here's yer reward, matey - and keep that cutlass, it's served me well!'~%~%You have gained a level!"
+                      "Captain Blackbeard's eyes light up! 'Ah, me treasure map! Ye've found it! Here's yer reward, matey - and keep that cutlass, it's served me well!'")
+                  "Captain Blackbeard looks at you hopefully. 'Have ye found me treasure map yet, matey? I'm counting on ye!'")))
            ((eq quest-state :completed)
             "Captain Blackbeard grins broadly. 'Ah, the one who found me map! Ye've done me a great service, matey. May the winds be ever in yer favor!'"))))
       ;; Default dialogue for other mobs
@@ -178,11 +200,11 @@
   "Get dialogue when offering a quest"
   (cond
     ((eq quest-id :apple-picking)
-     (format nil "The Village Elder looks up at you with kind eyes. 'Ah, young adventurer! I could use your help. I need a fresh apple from the garden for my evening tea. It's a simple task, but I'm too old to make the journey myself. Would you be so kind as to fetch one for me? (Type 'accept quest' or 'decline quest')'"))
+     (format nil "The Village Elder looks up at you with kind eyes. 'Ah, young adventurer! I could use your help. I need a fresh apple from the garden for my evening tea. It's a simple task, but I'm too old to make the journey myself. Would you be so kind as to fetch one for me?'"))
     ((eq quest-id :pirate-treasure)
-     (format nil "Captain Blackbeard turns to you with a troubled look. 'Ahoy there, matey! I'm in a right pickle, I am. Me treasure map has gone missing, and without it, I'll never find me buried gold! If ye could help an old pirate out and find that map, I'd be mighty grateful. There's a reward in it for ye! Would ye like to help me? (Type 'accept quest' or 'decline quest')'"))
+     (format nil "Captain Blackbeard turns to you with a troubled look. 'Ahoy there, matey! I'm in a right pickle, I am. Me treasure map has gone missing, and without it, I'll never find me buried gold! If ye could help an old pirate out and find that map, I'd be mighty grateful. There's a reward in it for ye!'"))
     (t
-     (format nil "~a has a quest for you! (Type 'accept quest' or 'decline quest')" (mud.mob::mob-name (mud.mob::find-mob-template mob-id))))))
+     (format nil "~a has a quest for you!" (mud.mob::mob-name (mud.mob::find-mob-template mob-id))))))
 
 (defun get-quest-progress-dialogue (mob-id quest-id)
   "Get dialogue when quest is in progress"
@@ -221,47 +243,6 @@
            (write-crlf (player-stream player)
             (wrap (format nil "You don't see anyone named ~a here to talk to." target-name) :bright-red)))))))
 
-(define-command (("accept") command-accept) (player rest)
-  (if (zerop (length rest))
-      (write-crlf (player-stream player)
-       (wrap "Accept what? Usage: accept quest" :bright-red))
-      (let* ((target (string-trim '(#\  #\Tab) rest))
-             (room-id (player-room player)))
-        (cond
-          ((string-equal target "quest")
-           (let ((quest-giver (find-quest-giver-in-room room-id)))
-             (if quest-giver
-                 (let ((quest-id (mud.mob::mob-quest-giver quest-giver)))
-                   (if (eq (mud.quest::get-player-quest-data player quest-id) :not-started)
-                       (progn
-                         (mud.quest::start-quest player quest-id)
-                         (write-crlf (player-stream player)
-                          (wrap (format nil "You accept ~a's quest!" (mud.mob::mob-name quest-giver)) :bright-green)))
-                       (write-crlf (player-stream player)
-                        (wrap "You don't have any quest offers to accept." :bright-yellow))))
-                 (write-crlf (player-stream player)
-                  (wrap "There's no one here offering you a quest." :bright-red)))))
-          (t
-           (write-crlf (player-stream player)
-            (wrap "Accept what? Usage: accept quest" :bright-red)))))))
-
-(define-command (("decline") command-decline) (player rest)
-  (if (zerop (length rest))
-      (write-crlf (player-stream player)
-       (wrap "Decline what? Usage: decline quest" :bright-red))
-      (let* ((target (string-trim '(#\  #\Tab) rest))
-             (room-id (player-room player)))
-        (cond
-          ((string-equal target "quest")
-           (let ((quest-giver (find-quest-giver-in-room room-id)))
-             (if quest-giver
-                 (write-crlf (player-stream player)
-                  (wrap (format nil "You decline ~a's quest offer." (mud.mob::mob-name quest-giver)) :bright-yellow))
-                 (write-crlf (player-stream player)
-                  (wrap "There's no one here offering you a quest." :bright-red)))))
-          (t
-           (write-crlf (player-stream player)
-            (wrap "Decline what? Usage: decline quest" :bright-red)))))))
 
 (defun find-quest-giver-in-room (room-id)
   "Find a quest giver in the current room"

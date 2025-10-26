@@ -51,9 +51,10 @@
   (define-vehicle "skiff" :water "A small wooden boat that glides across water on its own." :armor 5)
   (define-vehicle "boat" :water "A small wooden boat that glides across water on its own." :damage 5 :speed 2 :armor 8)
   (define-vehicle "eternal wanderer" :water "A small wooden boat that glides across water on its own." :damage 5 :speed 2 :armor 8)
-  (define-vehicle "car" :uber "A sleek, magical carriage that can take you anywhere instantly." :damage 30 :speed 10 :armor 25)
-  (define-vehicle "carriage" :uber "A sleek, magical carriage that can take you anywhere instantly." :damage 30 :speed 10 :armor 25)
+  (define-vehicle "car" :ground "A sleek, magical carriage that glides smoothly along the roads." :damage 30 :speed 10 :armor 25)
+  (define-vehicle "carriage" :ground "A sleek, magical carriage that glides smoothly along the roads." :damage 30 :speed 10 :armor 25)
   (define-vehicle "ufo" :air "A shimmering disc of otherworldly metal that defies gravity. It hums with cosmic energy." :damage 50 :speed 20 :armor 40)
+  (define-vehicle "motorcycle" :ground "A sleek black motorcycle with chrome accents. The engine rumbles with power." :damage 15 :speed 8 :armor 12)
 
   (define-room 'village-square
                "Village Square"
@@ -80,12 +81,14 @@
                '(("window" . "Through the dusty glass, you can see the distant forest. Something occasionally glimmers between the trees...")))
   (define-room 'moonlit-lane
                "Moonlit Lane"
-               "A narrow lane stretches eastward, flanked by [ivy-clad cottages]. Fireflies dance in the night air, drawing the eye toward the shadowed [forest archway]."
+               "A narrow lane stretches eastward, flanked by [ivy-clad cottages]. Fireflies dance in the night air, drawing the eye toward the shadowed [forest archway]. A dirt road branches off to the north."
                '((:west . village-square)
                  (:east . whispering-wood)
-                 (:up :air . sky-over-village))
+                 (:up :air . sky-over-village)
+                 (:north :ground . highway-north))
                '(("ivy-clad cottages" . "The cottages are ancient, their windows dark. The ivy seems to move slightly, as if breathing...")
-                 ("forest archway" . "Two twisted trees form a natural archway leading into the Whispering Wood. Strange runes are carved into their bark.")))
+                 ("forest archway" . "Two twisted trees form a natural archway leading into the Whispering Wood. Strange runes are carved into their bark.")
+                 ("dirt road" . "A well-worn dirt road that leads north, perfect for vehicles. It disappears into the distance between rolling hills.")))
   (define-room 'whispering-wood
                "Whispering Wood"
                "Towering pines murmur secrets overhead, their needles shimmering with dew. Somewhere deeper within, an [owl] hoots, beckoning the brave. A [standing stone] covered in moss rises from the forest floor."
@@ -185,13 +188,30 @@
                '(("graveyard" . "The graveyard is shrouded in perpetual mist, even from above. The ethereal glow pulses rhythmically, like a heartbeat visible from the heavens.")
                  ("ethereal mist" . "The mist swirls in patterns that seem almost deliberate, forming shapes that vanish when you try to focus on them.")))
 
+  ;; Ground vehicle areas
+  (define-room 'highway-north
+               "Northern Highway"
+               "A wide dirt road stretches north and south, flanked by rolling hills and scattered trees. The road is well-maintained and perfect for vehicles. Dust clouds rise from the occasional passing traveler."
+               '((:south :ground . moonlit-lane)
+                 (:north :ground . highway-crossroads))
+               '(("hills" . "The rolling hills to the east and west are covered in wild grass and dotted with ancient oak trees.")
+                 ("dust clouds" . "The dry road kicks up dust when vehicles pass, creating small clouds that drift across the landscape.")))
+  (define-room 'highway-crossroads
+               "Highway Crossroads"
+               "A major intersection where several roads meet. A weathered signpost points in multiple directions, and the ground is worn smooth by countless wheels. This is clearly a well-traveled route for vehicles."
+               '((:south :ground . highway-north)
+                 (:east :ground . highway-east)
+                 (:west :ground . highway-west))
+               '(("signpost" . "The wooden signpost is weathered but still readable. It points to various destinations: 'Village' to the south, 'Eastern Plains' to the east, and 'Western Hills' to the west.")
+                 ("worn ground" . "The intersection is heavily traveled, with deep ruts from wagon wheels and vehicle tracks crisscrossing the area.")))
+
   ;; Create and place vehicle items in rooms
   (let ((car-item (mud.inventory::make-item
                    :name "car"
                    :type :vehicle
-                   :vehicle-type :uber
+                   :vehicle-type :ground
                    :portable nil
-                   :description "A sleek, magical carriage that shimmers with arcane energy. You can enter it to travel anywhere instantly."))
+                   :description "A sleek, magical carriage that glides smoothly along the roads. You can enter it to travel on ground routes."))
         (skiff-item (mud.inventory::make-item
                      :name "skiff"
                      :type :vehicle
@@ -257,13 +277,17 @@
                 ((eq exit-type :air)
                  (when (and vehicle-type (eq vehicle-type :air))
                    (cdr rest-of-entry)))
+                ;; Ground exits - only accessible with ground vehicles
+                ((eq exit-type :ground)
+                 (when (and vehicle-type (eq vehicle-type :ground))
+                   (cdr rest-of-entry)))
                 ;; Other typed exits - vehicle must match
                 (t
                  (when (and vehicle-type (eq vehicle-type exit-type))
                    (cdr rest-of-entry)))))
             ;; Simple exit (format: (:direction . room))
-            ;; Accessible when not in a vehicle OR in an uber/air vehicle
-            (when (or (null vehicle-type) (eq vehicle-type :uber) (eq vehicle-type :air))
+            ;; Accessible when not in a vehicle OR in an uber/air/ground vehicle
+            (when (or (null vehicle-type) (eq vehicle-type :uber) (eq vehicle-type :air) (eq vehicle-type :ground))
               rest-of-entry))))))
 
 (defun add-item-to-room (room-id item)

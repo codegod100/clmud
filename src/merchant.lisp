@@ -232,7 +232,7 @@
       ((eq item (mud.player:player-equipped-armor player))
        (values nil "You'll need to unequip that armor first." nil))
       ((mud.inventory:quest-item-p item)
-       (values nil "The merchant won't buy quest items - they're too important to sell!" nil))
+       (values nil nil nil))
       (t
        (let* ((base-value (%determine-item-value item))
               (value (%calculate-dynamic-buy-price merchant (mud.inventory:item-name item) base-value)))
