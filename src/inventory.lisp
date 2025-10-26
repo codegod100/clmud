@@ -127,48 +127,86 @@
              (fuzzy-match-item-name (item-name item) item-name))
            (mud.player:player-inventory player)))
 
+(defun find-equipped-item (player item-name)
+  "Find an equipped item matching the name (supports partial matches)"
+  (let ((equipped-weapon (mud.player:player-equipped-weapon player))
+        (equipped-armor (mud.player:player-equipped-armor player)))
+    (cond
+      ((and equipped-weapon 
+            (fuzzy-match-item-name (item-name equipped-weapon) item-name))
+       equipped-weapon)
+      ((and equipped-armor 
+            (fuzzy-match-item-name (item-name equipped-armor) item-name))
+       equipped-armor)
+      (t nil))))
+
 (defun list-inventory (player)
-  "Return a formatted list of items in player's inventory"
+  "Return a formatted list of items in player's inventory with status"
   (let ((inventory (mud.player:player-inventory player)))
-    (if (null inventory)
-        (if (zerop (mud.player:player-gold player))
-            "Your inventory is empty."
-            (format nil "Your inventory is empty, but you carry ~d gold coins." (mud.player:player-gold player)))
-        (with-output-to-string (out)
-          (format out "Inventory (~d item~:p):~%" (length inventory))
-          (format out "Coins: ~d~%" (mud.player:player-gold player))
-          (let ((item-counts (make-hash-table :test 'equal))
-                (equipped-weapon (mud.player:player-equipped-weapon player))
-                (equipped-armor (mud.player:player-equipped-armor player)))
-            ;; Count items by name
-            (dolist (item inventory)
-              (incf (gethash (item-name item) item-counts 0)))
-            ;; Display with counts and equipped status
-            (maphash (lambda (name count)
-                       (let ((template (find-item-template name)))
-                         (when template
-                           (let ((is-equipped-weapon (and equipped-weapon
-                                                         (string= name (item-name equipped-weapon))))
-                                 (is-equipped-armor (and equipped-armor
-                                                        (string= name (item-name equipped-armor))))
-                                 (item-type (item-type template))
-                                 (damage (item-damage template))
-                                 (armor (item-armor template)))
-                             ;; Format: name x count [EQUIPPED] - description [+damage/+armor]
-                             (format out "  ~a x~d~a - ~a"
-                                    name count
-                                    (cond (is-equipped-weapon " [EQUIPPED]")
-                                          (is-equipped-armor " [EQUIPPED]")
-                                          (t ""))
-                                    (item-description template))
-                             ;; Add stats if weapon or armor
-                             (cond
-                               ((and (eq item-type :weapon) (> damage 0))
-                                (format out " [+~d damage]" damage))
-                               ((and (eq item-type :armor) (> armor 0))
-                                (format out " [+~d armor]" armor)))
-                             (format out "~%")))))
-                     item-counts))))))
+    (with-output-to-string (out)
+      ;; Show player status first
+      (format out "~a - Level ~d~%" (mud.player:player-name player) (mud.player:player-level player))
+      (format out "Health: ~d/~d  Mana: ~d/~d~%" 
+              (mud.player:player-health player) (mud.player:player-max-health player)
+              (mud.player:player-mana player) (mud.player:player-max-mana player))
+      (format out "XP: ~d/~d  (Need ~d more to level)~%" 
+              (mud.player:player-xp player)
+              (mud.player:xp-for-level (+ (mud.player:player-level player) 1))
+              (mud.player:xp-to-next-level player))
+      (format out "Damage: ~d  Armor: ~d  Gold: ~d~%" 
+              (mud.player:get-player-damage player)
+              (mud.player:get-player-armor player)
+              (mud.player:player-gold player))
+      (when (mud.player:player-equipped-weapon player)
+        (format out "Weapon: ~a (~+d damage)~%"
+                (mud.inventory:item-name (mud.player:player-equipped-weapon player))
+                (mud.inventory:item-damage (mud.player:player-equipped-weapon player))))
+      (when (mud.player:player-equipped-armor player)
+        (format out "Armor: ~a (~+d armor)~%"
+                (mud.inventory:item-name (mud.player:player-equipped-armor player))
+                (mud.inventory:item-armor (mud.player:player-equipped-armor player))))
+      (format out "~%")
+      
+      ;; Show inventory
+      (if (null inventory)
+          (if (zerop (mud.player:player-gold player))
+              (format out "Your inventory is empty.")
+              (format out "Your inventory is empty, but you carry ~d gold coins." (mud.player:player-gold player)))
+          (progn
+            (format out "Inventory (~d item~:p):~%" (length inventory))
+            (format out "Coins: ~d~%" (mud.player:player-gold player))
+            (let ((item-counts (make-hash-table :test 'equal))
+                  (equipped-weapon (mud.player:player-equipped-weapon player))
+                  (equipped-armor (mud.player:player-equipped-armor player)))
+              ;; Count items by name
+              (dolist (item inventory)
+                (incf (gethash (item-name item) item-counts 0)))
+              ;; Display with counts and equipped status
+              (maphash (lambda (name count)
+                         (let ((template (find-item-template name)))
+                           (when template
+                             (let ((is-equipped-weapon (and equipped-weapon
+                                                           (string= name (item-name equipped-weapon))))
+                                   (is-equipped-armor (and equipped-armor
+                                                          (string= name (item-name equipped-armor))))
+                                   (item-type (item-type template))
+                                   (damage (item-damage template))
+                                   (armor (item-armor template)))
+                               ;; Format: name x count [EQUIPPED] - description [+damage/+armor]
+                               (format out "  ~a x~d~a - ~a"
+                                      name count
+                                      (cond (is-equipped-weapon " [EQUIPPED]")
+                                            (is-equipped-armor " [EQUIPPED]")
+                                            (t ""))
+                                      (item-description template))
+                               ;; Add stats if weapon or armor
+                               (cond
+                                 ((and (eq item-type :weapon) (> damage 0))
+                                  (format out " [+~d damage]" damage))
+                                 ((and (eq item-type :armor) (> armor 0))
+                                  (format out " [+~d armor]" armor)))
+                               (format out "~%")))))
+                       item-counts)))))))
 
 (defun use-item (player item-name)
   "Use an item from player's inventory. Returns (values success message)"

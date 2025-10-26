@@ -95,6 +95,7 @@
            :add-to-inventory
            :remove-from-inventory
            :find-in-inventory
+           :find-equipped-item
            :list-inventory
            :use-item
            :drop-item

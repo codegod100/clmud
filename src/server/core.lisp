@@ -309,9 +309,26 @@
                     (item-name inv-item)
                     (mud.inventory:item-description inv-item))
             :bright-cyan))
-          (write-crlf stream
-           (wrap (format nil "You don't see '~a' here." target-name)
-                 :bright-red))))))
+          (let ((equipped-item (mud.inventory:find-equipped-item player target-name)))
+            (if equipped-item
+                (let ((item-type (mud.inventory:item-type equipped-item))
+                      (damage (mud.inventory:item-damage equipped-item))
+                      (armor (mud.inventory:item-armor equipped-item)))
+                  (write-crlf stream
+                   (wrap
+                    (format nil "~a (equipped): ~a"
+                            (mud.inventory:item-name equipped-item)
+                            (mud.inventory:item-description equipped-item))
+                    :bright-green))
+                  (when (and (eq item-type :weapon) (> damage 0))
+                    (write-crlf stream
+                     (wrap (format nil "Damage bonus: +~d" damage) :bright-yellow)))
+                  (when (and (eq item-type :armor) (> armor 0))
+                    (write-crlf stream
+                     (wrap (format nil "Armor bonus: +~d" armor) :bright-yellow))))
+                (write-crlf stream
+                 (wrap (format nil "You don't see '~a' here." target-name)
+                       :bright-red))))))))
 
 
 (defun send-room-overview (player)
