@@ -315,11 +315,15 @@
 
 
 (defun send-room-overview (player)
-  (let* ((room-id (player-room player)) (room (find-room room-id)))
+  (let* ((room-id (player-room player))
+         (room (find-room room-id))
+         (vehicle (player-vehicle player))
+         (vehicle-type (when vehicle
+                         (mud.inventory:item-vehicle-type vehicle))))
     (if room
         (let ((stream (player-stream player)))
           (write-crlf stream
-           (wrap (generate-map (player-room player)) :bright-cyan))
+           (wrap (generate-map room-id vehicle-type) :bright-cyan))
           (write-crlf stream
            (wrap (format nil "~a" (room-name room)) :bold :bright-cyan))
           (write-crlf stream (colorize-facets (room-description room)))
@@ -347,14 +351,11 @@
               (write-crlf stream
                (wrap (format nil "Items: ~a" items-str) :bright-white))))
           (write-crlf stream "")
-          (let* ((vehicle-type
-                  (when (player-vehicle player)
-                    (mud.inventory:item-vehicle-type (player-vehicle player))))
-                 (all-exits (room-exits room))
+          (let* ((all-exits (room-exits room))
                  (available-exits
                   (remove-if-not
                    (lambda (exit-entry)
-          (neighbor room (car exit-entry) vehicle-type))
+                     (neighbor room (car exit-entry) vehicle-type))
                    all-exits))
                  (exit-names
                   (mapcar
@@ -365,10 +366,10 @@
                  (wrap (format nil "Exits: ~{~a~^, ~}" exit-names)
                   :bright-yellow))
                 (write-crlf stream (wrap "Exits: none" :bright-yellow))))
-          (when (player-vehicle player)
+          (when vehicle
             (write-crlf stream
              (wrap
-              (format nil "You are in: ~a" (item-name (player-vehicle player)))
+              (format nil "You are in: ~a" (item-name vehicle))
               :bright-cyan))))
         (write-crlf (player-stream player)
          (wrap (format nil "ERROR: Room ~a not found!" room-id) :bright-red)))))
