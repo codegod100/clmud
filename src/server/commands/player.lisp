@@ -1,25 +1,9 @@
 (in-package :mud.server)
 
 (defun force-save-game (player)
-  "Force save the current player's state to disk"
-  (handler-case
-      (let ((path (merge-pathnames #P"data/save-state.lisp" *default-pathname-defaults*)))
-        (ensure-directories-exist path)
-        (with-open-file (out path :direction :output :if-exists :supersede
-                              :if-does-not-exist :create)
-          (let ((*print-readably* t)
-                (*print-escape* t)
-                (*package* (find-package :cl)))
-            (format out ";; Saved at ~a (manual)~%" (get-universal-time))
-            ;; Use the proper serialization function to include inventory
-            (let ((player-data (mud.player:%serialize-player player)))
-              (write (list player-data) :stream out :circle nil)
-              (terpri out)
-              (finish-output out)
-              1))))
-    (error (err)
-      (format t "Save error: ~a~%" err)
-      nil)))
+  "Force save all players' state to disk (same logic as periodic save)"
+  (declare (ignore player)) ; We save all players, not just the current one
+  (mud.server:save-game-state :reason :manual))
 
 (define-command (("stats") command-stats) (player rest)
   (declare (ignore rest))

@@ -197,4 +197,5 @@
     :mud.merchant)
   (:shadow :log)
   (:export :start :stop :await
-           :get-vehicles-with-players))
+           :get-vehicles-with-players
+           :save-game-state))
