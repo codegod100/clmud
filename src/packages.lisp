@@ -116,7 +116,8 @@
            :list-inventory
            :use-item
            :drop-item
-           :grab-item))
+           :grab-item
+           :quest-item-p))
 
 (defpackage :mud.mob
   (:use :cl)

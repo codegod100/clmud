@@ -17,7 +17,8 @@
     (vehicle-type nil)
     (effect nil)           ; For consumable effects
     (value 0 :type integer) ; For effect values (healing/mana amount)
-    (slot nil)))           ; Equipment slot (:weapon or :armor)
+    (slot nil)             ; Equipment slot (:weapon or :armor)
+    (quest-item nil :type boolean))) ; If T, this is a quest item that can't be sold
 
 ;;; Item templates (blueprints for creating items)
 (defparameter *item-templates*
@@ -97,9 +98,11 @@
               :type :weapon
               :damage 18
               :slot :weapon
+              :quest-item t
               :description "A curved cutlass with a wicked edge, favored by pirates and sea rogues.")
    (make-item :name "treasure-map"
               :type :consumable
+              :quest-item t
               :description "An old treasure map with cryptic markings. It seems to point to a location deep in the forest...")
    (make-item :name "pirate-hat"
               :type :armor
@@ -130,7 +133,8 @@
              :vehicle-type (mud.inventory::item-vehicle-type item)
              :effect (mud.inventory::item-effect item)
              :value (mud.inventory::item-value item)
-             :slot (mud.inventory::item-slot item)))
+             :slot (mud.inventory::item-slot item)
+             :quest-item (mud.inventory::item-quest-item item)))
 
 (defun create-item (template-name)
   "Create a new item instance from a template"
@@ -343,3 +347,7 @@
          (values t (if (eq kind :gold)
                        (format nil "You pick up ~d gold coins." payload)
                        (format nil "You get ~a." item-name))))))))
+
+(defun quest-item-p (item)
+  "Check if an item is a quest item that cannot be sold"
+  (and item (item-quest-item item)))

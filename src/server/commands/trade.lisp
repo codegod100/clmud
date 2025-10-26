@@ -1,5 +1,60 @@
 (in-package :mud.server)
 
+(defun handle-sell-all (player merchant)
+  "Handle selling all un-equipped items to a merchant"
+  (let* ((stream (player-stream player))
+         (inventory (copy-list (mud.player:player-inventory player)))
+         (equipped-weapon (mud.player:player-equipped-weapon player))
+         (equipped-armor (mud.player:player-equipped-armor player))
+         (un-equipped-items (remove-if (lambda (item)
+                                         (or (eq item equipped-weapon)
+                                             (eq item equipped-armor)))
+                                       inventory))
+         (sold-count 0)
+         (initial-gold (mud.player:player-gold player))
+         (failed-items nil))
+
+    (cond
+      ((null un-equipped-items)
+       (write-crlf stream
+        (wrap "You have no un-equipped items to sell." :bright-yellow)))
+      (t
+       (write-crlf stream
+        (wrap (format nil "Attempting to sell ~d un-equipped item~:p..."
+                      (length un-equipped-items)) :bright-cyan))
+
+       (dolist (item un-equipped-items)
+         (multiple-value-bind (success message item-id)
+             (mud.merchant:merchant-sell-item merchant player (mud.inventory:item-name item))
+           (if success
+               (progn
+                 (incf sold-count)
+                 (write-crlf stream (wrap message :bright-green)))
+               (progn
+                 (push (mud.inventory:item-name item) failed-items)
+                 (write-crlf stream (wrap message :bright-red))))))
+
+       ;; Summary
+       (let ((total-gold-earned (- (mud.player:player-gold player) initial-gold)))
+         (write-crlf stream
+          (wrap (format nil "Sold ~d item~:p for ~d gold total." sold-count total-gold-earned) :bright-cyan))
+
+         (when failed-items
+           (write-crlf stream
+            (wrap (format nil "Could not sell: ~{~a~^, ~}" failed-items) :bright-yellow)))
+
+         (write-crlf stream
+          (wrap (format nil "Gold now: ~d" (mud.player:player-gold player)) :bright-cyan))
+
+         ;; Announce to room
+         (when (> sold-count 0)
+           (announce-to-room player
+            (format nil "~a sells ~d item~:p to ~a."
+                    (wrap (mud.player:player-name player) :bright-yellow)
+                    sold-count
+                    (wrap (mud.merchant:merchant-name merchant) :bright-blue))
+            :include-self nil)))))))
+
 (defun show-merchant-to-player (stream merchant player)
   (write-crlf stream
    (wrap (format nil "~a displays their wares." (merchant-name merchant))
@@ -105,7 +160,7 @@
          (input (string-trim '(#\Space #\Tab) rest)))
     (when (zerop (length input))
       (write-crlf stream
-       (wrap "Sell what? Usage: sell <item> [to <merchant>]" :bright-red))
+       (wrap "Sell what? Usage: sell <item> [to <merchant>] or sell all [to <merchant>]" :bright-red))
       (return-from command-sell nil))
     (let* ((lower (string-downcase input))
            (to-pos (search " to " lower))
@@ -144,17 +199,22 @@
               (write-crlf stream
                (wrap "You don't see that merchant here." :bright-red)))
           (return-from command-sell nil))
-        (multiple-value-bind (success message item-id)
-            (merchant-sell-item merchant player item-name)
-          (write-crlf stream (wrap message (if success :bright-green :bright-red)))
-          (unless success (return-from command-sell nil))
-          (write-crlf stream
-           (wrap (format nil "Gold now: ~d" (player-gold player))
-                 :bright-cyan))
-          (when item-id
-            (announce-to-room player
-             (format nil "~a sells ~a to ~a."
-                     (wrap (player-name player) :bright-yellow)
-                     (wrap item-id :bright-green)
-                     (wrap (merchant-name merchant) :bright-blue))
-            :include-self nil)))))))
+        (cond
+          ((string-equal item-name "all")
+           (handle-sell-all player merchant))
+          (t
+           (multiple-value-bind (success message item-id)
+               (merchant-sell-item merchant player item-name)
+             (write-crlf stream (wrap message (if success :bright-green :bright-red)))
+             (unless success (return-from command-sell nil))
+             (write-crlf stream
+              (wrap (format nil "Gold now: ~d" (player-gold player))
+                    :bright-cyan))
+             (when item-id
+               (announce-to-room player
+                (format nil "~a sells ~a to ~a."
+                        (wrap (player-name player) :bright-yellow)
+                        (wrap item-id :bright-green)
+                        (wrap (merchant-name merchant) :bright-blue))
+                :include-self nil)))))))))
+

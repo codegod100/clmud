@@ -230,6 +230,28 @@ quit
 ./dev.sh test
 ```
 
+## Test File Management
+
+**CRITICAL RULE**: **NEVER DELETE TEST FILES** - Keep all test files as documentation and regression tests!
+
+### Test File Guidelines
+
+1. **Keep All Tests**: Every test file created should be preserved, even if it has package dependency issues
+2. **Test File Locations**:
+   - Unit tests: `tests/unit/`
+   - Command tests: `tests/commands/`
+   - Integration tests: `tests/integration/`
+   - Feature tests: `tests/features/` (for new features)
+3. **Test Naming**: Use descriptive names like `test-dynamic-pricing.lisp`, `test-quest-items.lisp`
+4. **Test Documentation**: Tests serve as living documentation of how features work
+
+### Why Keep Tests?
+
+- **Regression Prevention**: Tests catch bugs when code changes
+- **Documentation**: Tests show how features are supposed to work
+- **Debugging History**: Tests record what issues we've solved
+- **Feature Examples**: Tests demonstrate proper usage of new features
+
 ## Debugging Practice
 
 **IMPORTANT**: Every time the server dies and we have to debug the trace, add a test for that specific issue to prevent regression.

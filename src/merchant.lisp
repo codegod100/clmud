@@ -132,7 +132,8 @@
         (with-output-to-string (out)
           (dolist (entry sellable)
             (let* ((name (merchant-stock-template entry))
-                   (price (merchant-stock-price entry))
+                   (base-price (merchant-stock-price entry))
+                   (price (%calculate-dynamic-sell-price merchant name base-price))
                    (quantity (merchant-stock-quantity entry))
                    (template (and name (mud.inventory:find-item-template name)))
                    (detail (or (merchant-stock-description entry)
@@ -148,15 +149,55 @@
 (defun %determine-buy-value (entry)
   (or (merchant-stock-buy-value entry)
       (let ((price (merchant-stock-price entry)))
-        (when price (max 1 (floor (* price 0.5)))))))
+(when price (max 1 (floor (* price 0.5)))))))
+
+(defun %determine-item-value (item)
+  "Determine the buy value for any item based on its properties"
+  (let ((base-value (mud.inventory::item-value item)))
+    (if (> base-value 0)
+        ;; Use item's value if it has one
+        (max 1 (floor (* base-value 0.5)))
+        ;; Otherwise calculate based on item stats
+        (let ((damage (mud.inventory::item-damage item))
+              (armor (mud.inventory::item-armor item)))
+          (max 1 (floor (* (+ damage armor) 2)))))))
+
+(defun %calculate-dynamic-buy-price (merchant item-name base-price)
+  "Calculate dynamic buy price based on merchant's stock level"
+  (let* ((entry (%find-stock-entry merchant item-name))
+         (stock-quantity (if entry 
+                             (let ((qty (merchant-stock-quantity entry)))
+                               (if (eq qty :infinite) 100 qty)) ; Treat infinite as high stock
+                             0)) ; No stock entry means 0
+         (stock-factor (cond
+                        ((= stock-quantity 0) 1.5)      ; No stock = 50% higher price
+                        ((<= stock-quantity 2) 1.3)     ; Low stock = 30% higher price
+                        ((<= stock-quantity 5) 1.1)     ; Medium stock = 10% higher price
+                        (t 0.8))))                      ; High stock = 20% lower price
+    (max 1 (floor (* base-price stock-factor)))))
+
+(defun %calculate-dynamic-sell-price (merchant item-name base-price)
+  "Calculate dynamic sell price based on merchant's stock level"
+  (let* ((entry (%find-stock-entry merchant item-name))
+         (stock-quantity (if entry 
+                             (let ((qty (merchant-stock-quantity entry)))
+                               (if (eq qty :infinite) 100 qty)) ; Treat infinite as high stock
+                             0)) ; No stock entry means 0
+         (stock-factor (cond
+                        ((= stock-quantity 0) 1.2)      ; No stock = 20% higher price
+                        ((<= stock-quantity 2) 1.1)     ; Low stock = 10% higher price
+                        ((<= stock-quantity 5) 1.0)     ; Medium stock = normal price
+                        (t 0.9))))                      ; High stock = 10% lower price
+    (max 1 (floor (* base-price stock-factor)))))
 
 (defun merchant-buy-item (merchant player item-name)
   (let* ((entry (%find-stock-entry merchant item-name))
-         (price (and entry (merchant-stock-price entry))))
+         (base-price (and entry (merchant-stock-price entry)))
+         (price (and base-price (%calculate-dynamic-sell-price merchant item-name base-price))))
     (cond
       ((null entry)
        (values nil "They don't stock that item." nil))
-      ((null price)
+      ((null base-price)
        (values nil "That item isn't for sale." nil))
       ((not (%stock-entry-available-p entry))
        (values nil "That item is currently sold out." nil))
@@ -190,19 +231,20 @@
        (values nil "You'll need to unequip that weapon first." nil))
       ((eq item (mud.player:player-equipped-armor player))
        (values nil "You'll need to unequip that armor first." nil))
+      ((mud.inventory:quest-item-p item)
+       (values nil "The merchant won't buy quest items - they're too important to sell!" nil))
       (t
-       (let* ((entry (%find-stock-entry merchant (mud.inventory:item-name item)))
-              (value (and entry (%determine-buy-value entry))))
+       (let* ((base-value (%determine-item-value item))
+              (value (%calculate-dynamic-buy-price merchant (mud.inventory:item-name item) base-value)))
          (cond
-           ((null entry)
-            (values nil "They are not interested in that item." nil))
-           ((null value)
-            (values nil "They can't offer you gold for that." nil))
            ((not (%merchant-gold-sufficient-p merchant value))
             (values nil "They can't afford to buy that right now." nil))
            (t
             (mud.inventory:remove-from-inventory player item)
-            (%increment-stock entry)
+            ;; Try to add to merchant's stock if they sell this item type
+            (let ((entry (%find-stock-entry merchant (mud.inventory:item-name item))))
+              (when entry
+                (%increment-stock entry)))
             (%debit-merchant merchant value)
             (mud.player:modify-gold player value)
             (values t

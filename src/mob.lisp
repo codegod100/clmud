@@ -215,7 +215,13 @@
   "Get list of room IDs adjacent to the given room"
   (let ((room (mud.world::find-room room-id)))
     (when room
-      (mapcar #'cdr (mud.world::room-exits room)))))
+      (mapcar (lambda (exit)
+                (let ((rest-of-entry (cdr exit)))
+                  ;; Handle typed exits: (:direction :type . room-id)
+                  (if (and (consp rest-of-entry) (keywordp (car rest-of-entry)))
+                      (cdr rest-of-entry)  ; (:type . room-id) -> room-id
+                      rest-of-entry)))     ; (room-id) -> room-id
+              (mud.world::room-exits room)))))
 
 (defun move-mob-to-room (mob new-room-id)
   "Move a mob from its current room to a new room"

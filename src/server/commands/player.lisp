@@ -116,7 +116,7 @@
   (write-crlf (player-stream player)
    "  Vehicle: repair (fix broken vehicle with repair kit)")
   (write-crlf (player-stream player)
-   "  Trade: shop [merchant], buy <item> [from <merchant>], sell <item> [to <merchant>]")
+   "  Trade: shop [merchant], buy <item> [from <merchant>], sell <item> [to <merchant>], sell all [to <merchant>]")
   (write-crlf (player-stream player)
    "  Quests: quest, accept quest, decline quest, quest-reset <quest>, status")
   (write-crlf (player-stream player)

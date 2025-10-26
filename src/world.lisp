@@ -207,10 +207,12 @@
         (apple-item (mud.inventory::make-item
                      :name "apple"
                      :type :consumable
+                     :quest-item t
                      :description "A perfectly ripe red apple from the village garden. It looks delicious!"))
         (treasure-map-item (mud.inventory::make-item
                             :name "treasure-map"
                             :type :quest-item
+                            :quest-item t
                             :description "An old, weathered treasure map showing the location of Captain Blackbeard's buried gold. The map is marked with an 'X' near the hidden cove, but the exact spot seems to be in the ancient grove.")))
     (add-item-to-room 'village-square car-item)
     (add-item-to-room 'riverbank skiff-item)
