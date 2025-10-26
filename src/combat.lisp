@@ -37,10 +37,11 @@
   "List of available spells")
 
 (defun find-spell (name)
-  "Find a spell by name (case-insensitive)"
-  (find-if (lambda (spell)
-             (string-equal (spell-name spell) name))
-           *spells*))
+  "Find a spell by name (case-insensitive, partial match)"
+  (let ((search-name (string-downcase name)))
+    (find-if (lambda (spell)
+               (search search-name (string-downcase (spell-name spell))))
+             *spells*)))
 
 (defun create-corpse (player)
   "Create a corpse from a dead player with their inventory"
