@@ -7,3 +7,4 @@ alwaysApply: true
 - Run `./dev.sh validate` after edits for balance + compilation; use `./dev.sh balance` when checking structure mid-edit.
 - Keep edits s-expression-safe; prefer the helpers and guidance in [DEVELOPMENT.md](mdc:docs/DEVELOPMENT.md) and store tooling in `tools/`.
 - For diagnostics, rely on the `dev.sh` subcommands (`check`, `test`, `clean`) described in [DEVELOPMENT.md](mdc:docs/DEVELOPMENT.md).
+- only create new test files in tests dir
