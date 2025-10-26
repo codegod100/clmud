@@ -50,7 +50,7 @@
               count))
         (error (err)
           (server-log "Failed to save game state (~(~a~)): ~a" reason err)
-          nil))))
+          nil)))))
 
 (eval-when (:load-toplevel)
   (format t "Loading runtime persistence helpers...~%")
@@ -111,7 +111,7 @@
       (unless *persistence-running*
         (return))
       (when (and *persistence-running* (not signaled))
-        (save-game-state :reason :periodic))))))
+        (save-game-state :reason :periodic)))))
 
 
 (defun client-loop (socket stream)
