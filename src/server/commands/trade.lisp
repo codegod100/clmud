@@ -98,8 +98,7 @@
                      (wrap (player-name player) :bright-yellow)
                      (wrap item-id :bright-green)
                      (wrap (merchant-name merchant) :bright-blue))
-             :include-self nil))))))
-  )
+             :include-self nil)))))))
 
 (define-command (("sell") command-sell) (player rest)
   (let* ((stream (player-stream player))
@@ -158,4 +157,4 @@
                      (wrap (player-name player) :bright-yellow)
                      (wrap item-id :bright-green)
                      (wrap (merchant-name merchant) :bright-blue))
-            :include-self nil))))))
+            :include-self nil)))))))

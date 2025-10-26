@@ -19,6 +19,7 @@
            :find-item-in-room
            :find-facet-in-room
            :list-room-items
+           :room-items
            :direction-delta
            :explore-map
            :generate-map))
@@ -149,7 +150,8 @@
            :quest-name
            :quest-description
            :quest-reward-xp
-           :quest-reward-text))
+           :quest-reward-text
+           :maybe-announce-quest-rewards))
 
 (defpackage :mud.server
   (:use :cl

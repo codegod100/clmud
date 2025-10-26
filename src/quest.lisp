@@ -99,3 +99,25 @@
                   (has-item-in-inventory-p player "apple"))
                 200  ; Exactly enough XP to level from 1 to 2
                 "The elder smiles warmly. 'Thank you, young adventurer. Your journey has just begun!'"))
+
+(defun maybe-announce-quest-rewards (player)
+  "Check all active quests for completion and announce rewards"
+  (let ((completed-quests nil))
+    (when (mud.player::player-quest-state player)
+      (maphash (lambda (quest-id state)
+                 (when (eq state :in-progress)
+                   (multiple-value-bind (completed leveled-up quest)
+                       (check-quest-completion player quest-id)
+                     (when completed
+                       (push (list quest leveled-up) completed-quests)))))
+               (mud.player::player-quest-state player)))
+    (when completed-quests
+      (let ((stream (mud.player::player-stream player)))
+        (dolist (quest-data completed-quests)
+          (let ((quest (first quest-data))
+                (leveled-up (second quest-data)))
+            (mud.ansi::write-crlf stream
+             (mud.ansi::wrap (quest-reward-text quest) :bright-green))
+            (when leveled-up
+              (mud.ansi::write-crlf stream
+               (mud.ansi::wrap "You have gained a level!" :bright-yellow)))))))))
