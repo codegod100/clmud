@@ -153,6 +153,75 @@ At EOF: depth=1 (needs 1 more closing parens)
 Max depth reached: 22
 ```
 
+### check_parens.lisp
+Comprehensive parenthesis checker that validates multiple source files and attempts to read all forms.
+
+**Usage:**
+```bash
+sbcl --script tools/check_parens.lisp
+```
+
+**Features:**
+- Checks parenthesis balance in multiple source files
+- Attempts to read all top-level forms from each file
+- Reports detailed statistics and error locations
+- Validates structural integrity of Lisp files
+
+### fix-parens.lisp
+Automated parenthesis fixing tool that adds missing opening parentheses to Common Lisp forms.
+
+**Usage:**
+```bash
+sbcl --script tools/fix-parens.lisp
+```
+
+**Features:**
+- Automatically detects forms that need opening parentheses
+- Handles common Lisp constructs (defun, let, loop, etc.)
+- Preserves existing structure and formatting
+- Creates fixed output file for review
+
+### fix-handle-look-at.lisp
+Specialized tool for fixing the `handle-look-at` function by reading and rewriting it properly.
+
+**Usage:**
+```bash
+sbcl --script tools/fix-handle-look-at.lisp
+```
+
+**Features:**
+- Reads and validates the handle-look-at function
+- Reformats the function with proper pretty-printing
+- Maintains structural integrity during rewriting
+- Provides detailed feedback on function structure
+
+### check-server.lisp
+Server inspection tool that loads and examines server source files for function definitions.
+
+**Usage:**
+```bash
+sbcl --script tools/check-server.lisp
+```
+
+**Features:**
+- Loads server packages and core files
+- Inspects function definitions in server modules
+- Reports successful form reading statistics
+- Validates server code structure
+
+### compile_server.lisp
+Simple compilation utility for server source files.
+
+**Usage:**
+```bash
+sbcl --script tools/compile_server.lisp
+```
+
+**Features:**
+- Compiles core server files in proper order
+- Handles package loading and dependencies
+- Provides compilation feedback
+
 ## Validation Scripts
 
 ### validate.sh
