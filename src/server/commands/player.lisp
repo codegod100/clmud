@@ -73,7 +73,9 @@
 
 (define-command (("quest") command-quest) (player rest)
   (declare (ignore rest))
-  (let ((active-quests (get-active-quests player)))
+  (let ((active-quests (get-active-quests player))
+        (completed-quests (get-completed-quests player)))
+    ;; Show active quests
     (if active-quests
         (progn
           (write-crlf (player-stream player)
@@ -86,7 +88,33 @@
         (write-crlf (player-stream player)
          (wrap
           "You have no active quests. Talk to NPCs to find quests!"
-          :bright-yellow)))))
+          :bright-yellow)))
+    
+    ;; Show completed quests
+    (when completed-quests
+      (write-crlf (player-stream player)
+       (wrap "Completed Quests:" :bright-green))
+      (dolist (quest completed-quests)
+        (let ((repeatable-text (if (mud.quest::quest-repeatable quest) " (repeatable)" "")))
+          (write-crlf (player-stream player)
+           (format nil "  ~a~a: ~a"
+                   (wrap (quest-name quest) :bright-magenta)
+                   repeatable-text
+                   (quest-description quest))))))))
+
+(define-command (("quest-reset") command-quest-reset) (player rest)
+  "Reset a completed quest so it can be repeated"
+  (if (zerop (length rest))
+      (write-crlf (player-stream player)
+       (wrap "Reset which quest? Usage: quest-reset <quest-name>" :bright-red))
+      (let* ((quest-name (string-trim '(#\  #\Tab) rest))
+             (quest-id (cond
+                        ((string-equal quest-name "apple") :apple-picking)
+                        ((string-equal quest-name "pirate") :pirate-treasure)
+                        ((string-equal quest-name "treasure") :pirate-treasure)
+                        (t (intern (string-upcase quest-name) :keyword)))))
+        (write-crlf (player-stream player)
+         (wrap (mud.quest::reset-quest player quest-id) :bright-cyan)))))
 
 (define-command (("help") command-help) (player rest)
   (declare (ignore rest))
@@ -106,9 +134,9 @@
   (write-crlf (player-stream player)
    "  Trade: shop [merchant], buy <item> [from <merchant>], sell <item> [to <merchant>]")
   (write-crlf (player-stream player)
-   "  Quests: quest, accept quest, decline quest, status")
+   "  Quests: quest, accept quest, decline quest, quest-reset <quest>, status")
   (write-crlf (player-stream player)
-   "  Other: help, quit, save, . (repeat last command), suicide (test death)")
+   "  Other: help, quit, save, . (repeat last command), locate <mob>, suicide (test death)")
   )
 
 (define-command (("save") command-save) (player rest)
@@ -266,6 +294,38 @@
 
 (define-command (("chat") command-chat) (player rest)
   (handle-chat player rest))
+
+(define-command (("locate") command-locate) (player rest)
+  "Locate a specific mob in the game world"
+  (if (zerop (length rest))
+      (write-crlf (player-stream player)
+       (wrap "Locate which mob? Usage: locate <mob-name>" :bright-red))
+      (let* ((mob-name (string-trim '(#\  #\Tab) rest))
+             (found-mobs nil))
+        ;; Search through all rooms for mobs matching the name
+        (maphash (lambda (room-id mobs)
+                   (dolist (mob mobs)
+                     (when (search mob-name (mud.mob::mob-name mob) :test #'char-equal)
+                       (push (list mob room-id) found-mobs))))
+                 mud.mob::*room-mobs*)
+        
+        (if found-mobs
+            (progn
+              (write-crlf (player-stream player)
+               (wrap (format nil "Found ~d mob(s) matching '~a':" (length found-mobs) mob-name) :bright-yellow))
+              (dolist (mob-room found-mobs)
+                (let ((mob (first mob-room))
+                      (room-id (second mob-room)))
+                  (let ((room (mud.world::find-room room-id)))
+                    (write-crlf (player-stream player)
+                     (format nil "  ~a is in ~a"
+                             (wrap (mud.mob::mob-name mob) :bright-cyan)
+                             (wrap (if room 
+                                       (mud.world::room-name room)
+                                       (format nil "Unknown Room (~a)" room-id))
+                                   :bright-green)))))))
+            (write-crlf (player-stream player)
+             (wrap (format nil "No mobs found matching '~a'" mob-name) :bright-red))))))
 
 (define-command (("suicide") command-suicide) (player rest)
   (declare (ignore rest))

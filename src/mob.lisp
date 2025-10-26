@@ -92,8 +92,9 @@
 
 (defun remove-mob-from-room (room-id mob)
   "Remove a mob from a room"
-  (setf (gethash room-id *room-mobs*)
-        (remove mob (gethash room-id *room-mobs*) :test #'eq)))
+  (let ((remaining-mobs (remove mob (gethash room-id *room-mobs*) :test #'eq)))
+    (setf (gethash room-id *room-mobs*)
+          (if (listp remaining-mobs) remaining-mobs nil))))
 
 (defun mob-alive-p (mob)
   "Check if mob is alive"
@@ -221,8 +222,9 @@
   (let ((old-room-id (mob-current-room mob)))
     (when (and old-room-id new-room-id)
       ;; Remove from old room
-      (setf (gethash old-room-id *room-mobs*)
-            (remove mob (gethash old-room-id *room-mobs*) :test #'eq))
+      (let ((remaining-mobs (remove mob (gethash old-room-id *room-mobs*) :test #'eq)))
+        (setf (gethash old-room-id *room-mobs*)
+              (if (listp remaining-mobs) remaining-mobs nil)))
       ;; Add to new room
       (push mob (gethash new-room-id *room-mobs*))
       ;; Update mob's current room
@@ -264,7 +266,7 @@
   (let ((movements nil))
     (maphash (lambda (room-id mobs)
                (declare (ignore room-id))
-               (when mobs ; Check if mobs is not nil
+               (when (and mobs (listp mobs)) ; Check if mobs is not nil and is a list
                  (dolist (mob mobs)
                    (multiple-value-bind (moved-mob old-room new-room)
                        (process-mob-movement mob)
@@ -340,7 +342,7 @@
   (let ((combat-actions nil))
     (maphash (lambda (room-id mobs)
                (declare (ignore room-id))
-               (when mobs ; Check if mobs is not nil
+               (when (and mobs (listp mobs)) ; Check if mobs is not nil and is a list
                  (dolist (mob mobs)
                    (when (mob-in-combat-p mob)
                      (let ((action (process-mob-combat-attack mob)))

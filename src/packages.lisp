@@ -173,11 +173,13 @@
            :start-quest
            :check-quest-completion
            :get-active-quests
+           :get-completed-quests
            :has-item-in-inventory-p
            :initialize-quests
            :quest-name
            :quest-description
            :quest-reward-xp
+           :quest-reward-items
            :quest-reward-text
            :maybe-announce-quest-rewards))
 
