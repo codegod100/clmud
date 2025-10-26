@@ -185,3 +185,24 @@
             (wrap
              (format nil "Location '~a' not found." destination-name)
              :bright-red)))))))
+
+(define-command (("repair") command-repair) (player rest)
+  (declare (ignore rest))
+  (cond
+    ((null (player-vehicle player))
+     (write-crlf (player-stream player)
+      (wrap "You need to be in a vehicle to repair it." :bright-red)))
+    ((not (mud.player:vehicle-broken-p player))
+     (write-crlf (player-stream player)
+      (wrap "Your vehicle is already in perfect condition." :bright-yellow)))
+    (t
+     (let ((repair-kit (mud.inventory:find-in-inventory player "repair-kit")))
+       (cond
+         ((null repair-kit)
+          (write-crlf (player-stream player)
+           (wrap "You need a repair kit to fix your vehicle." :bright-red)))
+         (t
+          (multiple-value-bind (success message)
+              (mud.inventory:use-item player "repair-kit")
+            (write-crlf (player-stream player)
+             (wrap message (if success :bright-green :bright-red))))))))))

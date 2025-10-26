@@ -251,4 +251,4 @@
                                       :price 50
                                       :quantity :infinite
                                       :buy-value 25
-                                      :description "Essential tools for maintaining vehicles. Restores 10 armor points."))))
+                                      :description "Essential tools for maintaining vehicles. Fully restores vehicle armor."))))

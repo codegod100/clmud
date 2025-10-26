@@ -111,6 +111,8 @@
   (write-crlf (player-stream player)
    "  Inventory: inventory (inv/i), use <item>, drop <item>, get <item> (loot corpses)")
   (write-crlf (player-stream player)
+   "  Vehicle: repair (fix broken vehicle with repair kit)")
+  (write-crlf (player-stream player)
    "  Trade: shop [merchant], buy <item> [from <merchant>], sell <item> [to <merchant>]")
   (write-crlf (player-stream player)
    "  Quests: quest, quest start apple, status")

@@ -86,7 +86,7 @@
               :type :consumable
               :effect :repair-vehicle
               :value 10
-              :description "A toolkit containing tools and materials to repair vehicles. Restores 10 vehicle armor."))
+              :description "A toolkit containing tools and materials to fully repair vehicles. Restores all vehicle armor."))
   "List of item templates")
 
 (defun find-item-template (name)
@@ -283,13 +283,11 @@
                           (max-armor (mud.world::vehicle-max-armor vehicle-template)))
                       (if (>= current-armor max-armor)
                           (values nil "Your vehicle is already in perfect condition.")
-                          (let ((repair-amount (min (mud.inventory::item-value item) 
-                                                   (- max-armor current-armor))))
-                            (setf (mud.world::vehicle-armor vehicle-template) 
-                                  (+ current-armor repair-amount))
+                          (progn
+                            (setf (mud.world::vehicle-armor vehicle-template) max-armor)
                             (mud.inventory::remove-from-inventory player item)
-                            (values t (format nil "You use the ~a to repair your ~a, restoring ~d armor points."
-                                            item-name (mud.inventory::item-name vehicle-item) repair-amount)))))
+                            (values t (format nil "You use the ~a to fully repair your ~a, restoring all armor!"
+                                            item-name (mud.inventory::item-name vehicle-item))))))
                     (values nil "You can't repair this vehicle.")))))
 
          (t
