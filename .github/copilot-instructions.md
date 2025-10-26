@@ -1,31 +1,26 @@
-**Architecture Map**
-- `mud.lisp` is the SBCL entrypoint: it sets default paths, loads `src/packages.lisp`, and then pulls in the ANSI, world, player, inventory, mob, combat, quest, and server modules before invoking `mud.server:start`/`await`.
-- Packages in `src/packages.lisp` expose module APIs; cross-module calls are explicit (e.g., `mud.inventory` functions are aliased in `mud.player` via early `declaim` forms for inlining).
-- `mud.server` manages sockets with SBCL threads (`make-thread`) and guards shared state (`*clients*`) with `*clients-lock*`; telnet negotiation happens in `read-telnet-line`/`handle-iac` and all outbound text must use `write-crlf` to append CRLF like a MUD client expects.
-- Server startup (`start`) initializes world, quest, and mob data every time; exiting calls `stop`, which tears down sockets, joins the accept loop, and closes each client stream.
-- Port selection flows through `mud.lisp` helpers (`detect-port`), so tests or scripts can override via `--port`, `MUD_PORT`, or `PORT` env vars.
+**Core Overview**
+- `mud.lisp` is the SBCL entrypoint: it fixes the working directory, loads `src/packages.lisp`, then pulls in ANSI, player, inventory, merchant, world, mob, combat, quest, and server modules before calling `mud.server:start`/`await` with a port resolved from CLI/env (`--port`, `MUD_PORT`, `PORT`).
+- Packages declared in `src/packages.lisp` surface module APIs; cross-module calls rely on exported symbols and early `declaim` hints (e.g. `mud.player` inlining `mud.inventory` helpers) so respect package boundaries when adding functions.
+- Persistent game data is rebuilt on every boot via `initialize-world`, `initialize-merchants`, `initialize-quests`, and `initialize-mobs`, so mutations should go through those loaders rather than modifying globals directly.
 
-**Command Lifecycle**
-- Commands in `src/server/commands.lisp` are registered via the `define-command` macro, which defines `command-<name>` functions and records handlers in `*command-dispatch*`; `handle-command` simply looks up the lowercased verb and invokes the handler.
-- Prefer adding clauses with `define-command` instead of editing the giant `cond` in `handle-command`; the documentation refers to "form 46" but the macro is now the authoritative extension point.
-- Movement aliases (`n`, `se`, `upstream`, etc.) are wired at load time by `register-direction-command`, which resolves to `move-player`; mimic that flow if you introduce new shortcuts.
-- Player-visible output is consistently run through `mud.ansi:wrap` for color and styling; keep ANSI usage centralized there and call `announce-to-room`/`broadcast` to reach other players while holding the client mutex when needed.
-- Combat helpers like `handle-cast` and `command-attack` bridge to `mud.combat` and `mud.mob`; follow the existing pattern of computing damage, applying armor, and triggering loot/XP via those modules.
+**Server Runtime**
+- `src/server/core.lisp` owns sockets, Telnet negotiation, ANSI filtering, and shared client state; guard `*clients*` with `*clients-lock*` and always send text with `write-crlf` to preserve CRLF expectations.
+- `src/server/runtime.lisp` wraps `accept-loop` and `client-loop`; new per-connection behavior (login, repeat-last-command via ".", inventory seeding) belongs there, while room movement flows through `move-player` and `send-room-overview`.
+- Shared messaging utilities (`announce-to-room`, `broadcast`) expect the mutex to be held; they also wrap names with `mud.ansi:wrap` so continue using them for cross-player chatter.
 
-**Content Systems**
-- `mud.world` (`initialize-world`) seeds rooms, vehicles, and facets; exits are stored as lists where a keyword in the cdr (e.g., `(:north :water . hidden-cove)`) enforces vehicle gating—use `mud.world:neighbor` to respect those rules.
-- `mud.inventory` maintains item templates and equips via slots (`:weapon`, `:armor`); inventory listings annotate equipped items with `[EQUIPPED]` while retaining them in the backpack, so armor/weapon swaps never drop items.
-- `mud.mob` seeds mobs from templates into `*room-mobs*`; respawns or custom encounters should operate through `spawn-mob` and `remove-mob-from-room` so the shared hash tables stay consistent.
-- `mud.combat` owns spell definitions, corpse creation, and XP payout side effects; when players die, `handle-player-death` teleports them and caches their inventory in `*corpse-data*` for later looting.
-- `mud.quest` tracks per-player quest state in a hash table stored on the player object; new quests should follow the `define-quest` signature (id, name, description, completion lambda, reward XP/text).
+**Content & Data**
+- `mud.world` stores rooms/exits; exits include gating keywords (e.g. `(:north :water . hidden-cove)`) that pair with vehicle checks, so prefer `mud.world:neighbor` instead of walking the structure yourself.
+- `mud.inventory` keeps templates, slot metadata, and equips—players retain equipped items in their inventory with `[EQUIPPED]` tags, and helpers like `handle-equip-all` compare slot scores via `item-slot-score`.
+- `src/merchant.lisp` registers merchants through `define-merchant`; stock entries support finite quantity, buy-back values, and summaries (`merchant-stock-summary`), while `find-merchant-in-room-by-name` normalizes punctuation/casing when matching player input.
+- Corpses and XP live in `mud.combat`; `handle-get-all` bridges corpse loot into inventories and triggers quest checks through `maybe-announce-quest-rewards`.
+
+**Command System**
+- Commands are defined in `src/server/commands.lisp` via `define-command`, which both declares `command-<name>` and registers handlers in `*command-dispatch*`; avoid editing the legacy `handle-command` cond directly.
+- Direction aliases (`n`, `se`, `upstream`, etc.) load once through `register-direction-command` and should continue to call `move-player` with a normalized keyword when adding shortcuts.
+- Merchant (`shop`, `buy`, `sell`), looting (`get`, `get all`), and combat entries lean on helpers that already broadcast events and award quests—reuse those paths so announcements and rewards stay consistent.
 
 **Dev Workflow**
-- Use `scripts/dev.sh start` to boot the server (wraps `sbcl --script mud.lisp`) and `scripts/dev.sh test` for a 10-second smoke test that pipes `quit` via `nc`.
-- `scripts/dev.sh validate` delegates to `tools/validate.sh`, running both parentheses balance and compilation checks; `scripts/dev.sh check` hits only `tools/check-compile.sh` if you want faster feedback.
-- Editing Lisp directly is risky—prefer `tools/sexp-edit.lisp` for structural operations (`list`, `show`, `replace`) or `tools/lisp-safe-edit.py` for line edits that keep depth balanced.
-- Automated tests live in `tests/test-runner.lisp` and depend on Quicklisp + `fiveam`; run them with `sbcl --script tests/test-runner.lisp` after ensuring `~/quicklisp/setup.lisp` exists.
-- Detailed compile logs land in `/tmp/mud-compile-detail.log` via the tooling; call `scripts/dev.sh clean` to clear temp artifacts like `/tmp/mud-test.log` when needed.
-
-
-**Environment Setup**
-- if shell is fish, be sure to take that into account when issuing shell commands
+- Prefer the wrapper scripts in `scripts/`: `./scripts/dev.sh start` boots the server, `./scripts/dev.sh test` runs the 10s smoke test via `nc`, `./scripts/dev.sh validate` executes `tools/validate.sh` (paren + compile), and `./scripts/dev.sh check` calls `tools/check-compile.sh` for faster compile-only feedback.
+- Automated tests live in `tests/test-runner.lisp` (FiveAM); run with `sbcl --script tests/test-runner.lisp` once `~/quicklisp/setup.lisp` is installed.
+- Structural edits should use `python3 tools/lisp-safe-edit.py` to keep parentheses balanced or `sbcl --script tools/sexp-edit.lisp` (`show`, `replace`, `check`) for S-expression-safe updates; `tools/check-handle-command.lisp` isolates the known `handle-command` warning.
+- Compilation logs land in `/tmp/mud-compile-detail.log`, and `./scripts/dev.sh clean` clears temp artifacts such as `/tmp/mud-test.log` when iterating.
