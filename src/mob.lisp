@@ -16,6 +16,10 @@
   current-room    ; Current room ID where mob is located
   last-move-time  ; Universal time of last movement
   move-interval   ; Random interval between movements (in seconds)
+  in-combat       ; If T, mob is in combat
+  combat-target   ; Player or mob this mob is fighting
+  last-attack-time ; Universal time of last attack
+  attack-interval ; Interval between attacks (in seconds)
   )
 
 (defparameter *mob-templates* (make-hash-table :test #'eq)
@@ -39,7 +43,11 @@
                   :aggressive aggressive
                   :current-room nil
                   :last-move-time 0
-                  :move-interval (+ move-interval-min (random (- move-interval-max move-interval-min))))))
+                  :move-interval (+ move-interval-min (random (- move-interval-max move-interval-min)))
+                  :in-combat nil
+                  :combat-target nil
+                  :last-attack-time 0
+                  :attack-interval 3)))
 
 (defun find-mob-template (id)
   "Find a mob template by ID"
@@ -59,6 +67,11 @@
         ;; Generate new random move interval
         (setf (mob-move-interval mob-instance) 
               (+ (mob-move-interval template) (random 60)))
+        ;; Initialize combat tracking
+        (setf (mob-in-combat mob-instance) nil)
+        (setf (mob-combat-target mob-instance) nil)
+        (setf (mob-last-attack-time mob-instance) 0)
+        (setf (mob-attack-interval mob-instance) 3)
         ;; Add to room
         (push mob-instance (gethash room-id *room-mobs*))
         mob-instance))))
@@ -247,3 +260,61 @@
        (mob-alive-p mob)
        (mud.player::player-alive-p player)
        (eq (mob-current-room mob) (mud.player::player-room player))))
+
+;;; Automatic Combat System
+
+(defun start-combat (mob target)
+  "Start combat between mob and target"
+  (setf (mob-in-combat mob) t)
+  (setf (mob-combat-target mob) target)
+  (setf (mob-last-attack-time mob) (get-universal-time)))
+
+(defun end-combat (mob)
+  "End combat for a mob"
+  (setf (mob-in-combat mob) nil)
+  (setf (mob-combat-target mob) nil))
+
+(defun mob-in-combat-p (mob)
+  "Check if a mob is in combat"
+  (mob-in-combat mob))
+
+(defun should-mob-attack-in-combat (mob)
+  "Check if a mob should attack during combat"
+  (and (mob-in-combat-p mob)
+       (mob-alive-p mob)
+       (mob-combat-target mob)
+       (let ((target (mob-combat-target mob)))
+         (and target
+              (if (mud.player::player-p target)
+                  (mud.player::player-alive-p target)
+                  (mob-alive-p target))
+              (eq (mob-current-room mob) 
+                  (if (mud.player::player-p target)
+                      (mud.player::player-room target)
+                      (mob-current-room target)))
+              (>= (- (get-universal-time) (mob-last-attack-time mob))
+                  (mob-attack-interval mob))))))
+
+(defun process-mob-combat-attack (mob)
+  "Process a combat attack for a mob"
+  (when (should-mob-attack-in-combat mob)
+    (let ((target (mob-combat-target mob)))
+      (setf (mob-last-attack-time mob) (get-universal-time))
+      (if (mud.player::player-p target)
+          ;; Attack player
+          (mud.server::handle-mob-attack-player mob target)
+          ;; Attack other mob (not implemented yet)
+          nil))))
+
+(defun process-all-mob-combat ()
+  "Process combat for all mobs in the game"
+  (let ((combat-actions nil))
+    (maphash (lambda (room-id mobs)
+               (declare (ignore room-id))
+               (dolist (mob mobs)
+                 (when (mob-in-combat-p mob)
+                   (let ((action (process-mob-combat-attack mob)))
+                     (when action
+                       (push action combat-actions))))))
+             *room-mobs*)
+    combat-actions))

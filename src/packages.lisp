@@ -58,6 +58,7 @@
            :player-quest-state
            :player-gold
            :set-player-gold
+           :player-p
            :player-alive-p
            :get-player-damage
            :get-player-armor
@@ -141,7 +142,11 @@
            :move-mob-to-room
            :mob-aggressive-p
            :get-aggressive-mobs-in-room
-           :should-mob-attack-player))
+           :should-mob-attack-player
+           :start-combat
+           :end-combat
+           :mob-in-combat-p
+           :process-all-mob-combat))
 
 (defpackage :mud.combat
   (:use :cl)

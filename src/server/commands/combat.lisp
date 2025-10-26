@@ -53,20 +53,33 @@
       (let* ((target-name (string-trim '(#\  #\Tab) rest))
              (mob (find-mob-in-room (player-room player) target-name)))
         (if mob
-            (let* ((player-damage (get-player-damage player))
-                   (mob-armor (mob-armor mob))
-                   (actual-damage (max 1 (- player-damage mob-armor))))
+            (progn
+              ;; Start automatic combat
+              (mud.mob::start-combat mob player)
               (write-crlf (player-stream player)
                (wrap
-                (format nil "You attack ~a for ~d damage!"
-                        (mob-name mob) actual-damage)
-                :bright-red))
+                (format nil "You engage ~a in combat!" (mob-name mob))
+                :bright-yellow))
               (announce-to-room player
-               (format nil "~a attacks ~a!"
+               (format nil "~a engages ~a in combat!"
                        (wrap (player-name player) :bright-yellow)
                        (mob-name mob))
                :include-self nil)
-              (resolve-mob-hit player mob actual-damage))
+              ;; Do initial attack
+              (let* ((player-damage (get-player-damage player))
+                     (mob-armor (mob-armor mob))
+                     (actual-damage (max 1 (- player-damage mob-armor))))
+                (write-crlf (player-stream player)
+                 (wrap
+                  (format nil "You attack ~a for ~d damage!"
+                          (mob-name mob) actual-damage)
+                  :bright-red))
+                (announce-to-room player
+                 (format nil "~a attacks ~a!"
+                         (wrap (player-name player) :bright-yellow)
+                         (mob-name mob))
+                 :include-self nil)
+                (resolve-mob-hit player mob actual-damage)))
             (write-crlf (player-stream player)
              (wrap
               (format nil "There is no ~a here to attack."
@@ -92,3 +105,23 @@
 
 (define-command (("cast") command-cast) (player rest)
   (handle-cast player rest))
+
+(define-command (("flee") command-flee) (player rest)
+  (declare (ignore rest))
+  (let ((room-id (player-room player))
+        (mobs (mud.mob::get-mobs-in-room room-id)))
+    (let ((combat-mobs (remove-if-not #'mud.mob::mob-in-combat-p mobs)))
+      (if combat-mobs
+          (progn
+            ;; End combat with all mobs in the room
+            (dolist (mob combat-mobs)
+              (when (eq (mud.mob::mob-combat-target mob) player)
+                (mud.mob::end-combat mob)))
+            (write-crlf (player-stream player)
+             (wrap "You flee from combat!" :bright-yellow))
+            (announce-to-room player
+             (format nil "~a flees from combat!"
+                     (wrap (player-name player) :bright-yellow))
+             :include-self nil))
+          (write-crlf (player-stream player)
+           (wrap "You are not in combat." :bright-red))))))

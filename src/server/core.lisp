@@ -500,6 +500,14 @@
           (write-crlf stream (wrap "You can't go that way." :bright-red))
           nil)
         (progn
+         ;; End combat with any mobs in the current room
+         (let ((current-room-id (mud.player::player-room player))
+               (mobs (mud.mob::get-mobs-in-room current-room-id)))
+           (dolist (mob mobs)
+             (when (and (mud.mob::mob-in-combat-p mob)
+                        (eq (mud.mob::mob-combat-target mob) player))
+               (mud.mob::end-combat mob))))
+         
          (announce-to-room player
           (format nil "~a slips ~a." (wrap (player-name player) :bright-blue)
                   (string-downcase (symbol-name direction))))
@@ -537,8 +545,8 @@
    (find-if (lambda (p) (string-equal (player-name p) name)) *clients*)))
 
 
-(defun handle-aggressive-mob-attack (mob player)
-  "Handle an aggressive mob attacking a player"
+(defun handle-mob-attack-player (mob player)
+  "Handle a mob attacking a player (used in automatic combat)"
   (let ((mob-name (mud.mob::mob-name mob))
         (player-name (mud.player::player-name player))
         (stream (mud.player::player-stream player)))
@@ -602,11 +610,36 @@
          (format nil "~a has been slain by ~a!"
                  (wrap player-name :bright-red) mob-name)
          :include-self nil)
+        (mud.mob::end-combat mob) ; End combat when player dies
         (handle-player-death player)
         (write-crlf stream
          (wrap "You awaken in the graveyard, wounded but alive..."
           :bright-black))
-        (send-room-overview player)))))
+        (send-room-overview player))
+      
+      ;; Return true to indicate an attack occurred
+      t)))
+
+(defun handle-aggressive-mob-attack (mob player)
+  "Handle an aggressive mob attacking a player - start automatic combat"
+  (let ((mob-name (mud.mob::mob-name mob))
+        (player-name (mud.player::player-name player))
+        (stream (mud.player::player-stream player)))
+    
+    ;; Start automatic combat
+    (mud.mob::start-combat mob player)
+    
+    ;; Announce the start of combat
+    (write-crlf stream
+     (wrap (format nil "~a attacks you!" mob-name) :bright-red))
+    (announce-to-room player
+     (format nil "~a attacks ~a!" 
+             (wrap mob-name :bright-red) 
+             (wrap player-name :bright-red))
+     :include-self nil)
+    
+    ;; Do the initial attack
+    (handle-mob-attack-player mob player)))
 
 (defun resolve-mob-hit (player mob damage)
   "Apply DAMAGE to MOB from PLAYER and handle death/xp/counter-attacks."
@@ -642,6 +675,7 @@
             (format nil "~a dropped: ~{~a~^, ~}" (mob-name mob)
                     (mapcar #'item-name loot))
             :bright-yellow))))
+      (mud.mob::end-combat mob) ; End combat when mob dies
       (remove-mob-from-room (player-room player) mob) t)
      (t
       (write-crlf (player-stream player)

@@ -106,6 +106,10 @@
   "Adjust player gold, never letting it drop below zero."
   (set-player-gold player (+ (player-gold player) delta)))
 
+(defun player-p (object)
+  "Check if an object is a player"
+  (typep object 'player))
+
 (defun player-alive-p (player)
   "Check if player is alive"
   (> (player-health player) 0))

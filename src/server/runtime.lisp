@@ -148,11 +148,15 @@
     (unless *mob-movement-running*
       (return))
     (handler-case
-        (let ((movements (mud.mob::process-all-mob-movements)))
-          (when movements
-            (dolist (movement movements)
-              (destructuring-bind (mob old-room new-room) movement
-                (announce-mob-movement mob old-room new-room)))))
+        (progn
+          ;; Process mob movements
+          (let ((movements (mud.mob::process-all-mob-movements)))
+            (when movements
+              (dolist (movement movements)
+                (destructuring-bind (mob old-room new-room) movement
+                  (announce-mob-movement mob old-room new-room)))))
+          ;; Process mob combat
+          (mud.mob::process-all-mob-combat))
       (error (err)
         (server-log "Error in mob movement loop: ~a" err)))))
 
