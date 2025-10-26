@@ -230,3 +230,20 @@
                      (push (list moved-mob old-room new-room) movements)))))
              *room-mobs*)
     movements))
+
+;;; Aggressive Mob System
+
+(defun mob-aggressive-p (mob)
+  "Check if a mob is aggressive"
+  (mob-aggressive mob))
+
+(defun get-aggressive-mobs-in-room (room-id)
+  "Get list of aggressive mobs in a room"
+  (remove-if-not #'mob-aggressive-p (get-mobs-in-room room-id)))
+
+(defun should-mob-attack-player (mob player)
+  "Check if an aggressive mob should attack a player"
+  (and (mob-aggressive-p mob)
+       (mob-alive-p mob)
+       (mud.player::player-alive-p player)
+       (eq (mob-current-room mob) (mud.player::player-room player))))

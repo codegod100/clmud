@@ -138,7 +138,10 @@
            :mob-last-move-time
            :mob-move-interval
            :process-all-mob-movements
-           :move-mob-to-room))
+           :move-mob-to-room
+           :mob-aggressive-p
+           :get-aggressive-mobs-in-room
+           :should-mob-attack-player))
 
 (defpackage :mud.combat
   (:use :cl)

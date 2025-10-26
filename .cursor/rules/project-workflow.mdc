@@ -15,6 +15,14 @@ alwaysApply: true
 - Keep edits s-expression-safe; prefer the helpers and guidance in [DEVELOPMENT.md](mdc:docs/DEVELOPMENT.md) and store tooling in `tools/`.
 - For diagnostics, rely on the `dev.sh` subcommands (`check`, `test`, `clean`) described in [DEVELOPMENT.md](mdc:docs/DEVELOPMENT.md).
 
+## Code Checks & Validation
+- **DO NOT START MUD SERVER during code checks** - Use compilation-only validation
+- For syntax/compilation checks, use: `./scripts/dev.sh check` (compilation only)
+- For balance checks only, use: `./scripts/dev.sh balance` (parenthesis balance)
+- For full validation with server start, use: `./scripts/dev.sh validate` (only when testing gameplay)
+- Only start the actual MUD server when explicitly testing gameplay or network functionality
+- Avoid `sbcl --script mud.lisp` for code validation - use the dev.sh commands instead
+
 ## Testing
 
 - **ALWAYS create new test files in the `tests/` directory** - never in the project root

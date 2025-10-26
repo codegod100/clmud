@@ -21,8 +21,8 @@ show_help() {
     echo
     echo "Commands:"
     echo "  start         - Start the MUD server"
-    echo "  validate      - Run full validation (balance + compile)"
-    echo "  check         - Quick compilation check"
+    echo "  validate      - Run full validation (balance + compile + server start)"
+    echo "  check         - Quick compilation check (no server start)"
     echo "  balance       - Check parenthesis balance only"
     echo "  list <file>   - List top-level forms in a file"
     echo "  show <file> <index> - Show a specific form"
@@ -52,6 +52,7 @@ cmd_validate() {
     echo -e "${BLUE}Running full validation...${NC}"
     ./tools/validate.sh
 }
+
 
 cmd_check() {
     echo -e "${BLUE}Checking compilation...${NC}"

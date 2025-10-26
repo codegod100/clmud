@@ -396,7 +396,12 @@
             (when mobs
               (write-crlf stream
                (wrap (format nil "Mobs: ~{~a~^, ~}" (mapcar #'mob-name mobs))
-                :bright-red))))
+                :bright-red)))
+          ;; Check for aggressive mobs and attack if necessary
+          (let ((aggressive-mobs (mud.mob::get-aggressive-mobs-in-room (player-room player))))
+            (dolist (mob aggressive-mobs)
+              (when (mud.mob::should-mob-attack-player mob player)
+                (handle-aggressive-mob-attack mob player)))))
           (let ((items-str (list-room-items (player-room player))))
             (when items-str
               (write-crlf stream
@@ -531,6 +536,77 @@
   (with-mutex (*clients-lock*)
    (find-if (lambda (p) (string-equal (player-name p) name)) *clients*)))
 
+
+(defun handle-aggressive-mob-attack (mob player)
+  "Handle an aggressive mob attacking a player"
+  (let ((mob-name (mud.mob::mob-name mob))
+        (player-name (mud.player::player-name player))
+        (stream (mud.player::player-stream player)))
+    ;; Announce the attack
+    (write-crlf stream
+     (wrap (format nil "~a attacks you!" mob-name) :bright-red))
+    (announce-to-room player
+     (format nil "~a attacks ~a!" 
+             (wrap mob-name :bright-red) 
+             (wrap player-name :bright-red))
+     :include-self nil)
+    
+    ;; Calculate damage
+    (let* ((mob-damage (mud.mob::mob-damage mob))
+           (player-armor (get-player-armor player))
+           (vehicle-armor (get-vehicle-armor player))
+           (total-armor (+ player-armor vehicle-armor))
+           (damage-dealt (max 1 (- mob-damage total-armor))))
+      
+      (if (and (mud.player::player-vehicle player) (> vehicle-armor 0))
+          ;; Vehicle takes damage first
+          (let ((excess-damage (damage-vehicle player mob-damage)))
+            (if (> excess-damage 0)
+                ;; Vehicle broke, player takes excess damage
+                (progn
+                  (write-crlf stream
+                   (wrap
+                    (format nil "~a attacks your ~a, destroying it! You take ~d damage!"
+                            mob-name (mud.inventory::item-name (mud.player::player-vehicle player)) excess-damage)
+                    :bright-red))
+                  (mud.player::modify-health player (- excess-damage))
+                  ;; Remove player from broken vehicle
+                  (mud.world::add-item-to-room (mud.player::player-room player) (mud.player::player-vehicle player))
+                  (setf (mud.player::player-vehicle player) nil)
+                  ;; Show status after taking damage
+                  (show-player-status player))
+                ;; Vehicle absorbed all damage
+                (progn
+                  (write-crlf stream
+                   (wrap
+                    (format nil "~a attacks your ~a, but it absorbs the damage!"
+                            mob-name (mud.inventory::item-name (mud.player::player-vehicle player)))
+                    :bright-yellow))
+                  ;; Show status to show vehicle condition
+                  (show-player-status player))))
+          ;; No vehicle armor, player takes damage directly
+          (progn
+            (mud.player::modify-health player (- damage-dealt))
+            (write-crlf stream
+             (wrap
+              (format nil "~a attacks you for ~d damage!" mob-name damage-dealt)
+              :bright-red))
+            ;; Show status after taking damage
+            (show-player-status player)))
+      
+      ;; Check if player died
+      (unless (mud.player::player-alive-p player)
+        (write-crlf stream
+         (wrap "You have been slain!" :bright-red))
+        (announce-to-room player
+         (format nil "~a has been slain by ~a!"
+                 (wrap player-name :bright-red) mob-name)
+         :include-self nil)
+        (handle-player-death player)
+        (write-crlf stream
+         (wrap "You awaken in the graveyard, wounded but alive..."
+          :bright-black))
+        (send-room-overview player)))))
 
 (defun resolve-mob-hit (player mob damage)
   "Apply DAMAGE to MOB from PLAYER and handle death/xp/counter-attacks."
