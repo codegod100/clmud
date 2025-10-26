@@ -430,7 +430,8 @@
                   (string-downcase (symbol-name direction))))
          (set-player-room player (room-id target))
          (announce-to-room player
-          (format nil "~a arrives." (wrap (player-name player) :bright-green))
+          (format nil "~a arrives from ~a." (wrap (player-name player) :bright-green)
+                  (wrap (room-name room) :bright-cyan))
           :include-self nil)
          (send-room-overview player)
          t))))
@@ -444,6 +445,15 @@
          (format nil "~a says: ~a" (wrap (player-name player) :bright-green)
                  clean)
          :include-self t))))
+
+(defun handle-chat (player text)
+  (let ((clean (string-trim '(#\  #\Tab) text)))
+    (if (zerop (length clean))
+        (write-crlf (player-stream player) (wrap "Chat what?" :bright-red))
+        (let ((message (format nil "~a chats: ~a" (wrap (player-name player) :bright-yellow)
+                               clean)))
+          (broadcast message player)
+          (write-crlf (player-stream player) message)))))
 
 
 (defun find-player-by-name (name)

@@ -88,7 +88,7 @@
    (wrap "Commands:" :bright-yellow))
   (write-crlf (player-stream player)
    "  Movement: look (l), go <dir> (n/s/e/w/u/d/ne/nw/se/sw), enter <vehicle>, exit, uber <location>")
-  (write-crlf (player-stream player) "  Social: say <text>, who")
+  (write-crlf (player-stream player) "  Social: say <text> (local), chat <text> (global), who")
   (write-crlf (player-stream player)
    "  Combat: attack <mob>, cast <spell> <target>, stats, spells")
   (write-crlf (player-stream player)
@@ -129,6 +129,12 @@
   (declare (ignore rest))
   (write-crlf (player-stream player)
    (wrap "No previous command to repeat." :bright-red)))
+
+(define-command (("say") command-say) (player rest)
+  (handle-say player rest))
+
+(define-command (("chat") command-chat) (player rest)
+  (handle-chat player rest))
 
 (define-command (("suicide") command-suicide) (player rest)
   (declare (ignore rest))
