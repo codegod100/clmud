@@ -64,6 +64,7 @@
            :get-player-armor
            :get-vehicle-armor
            :damage-vehicle
+           :vehicle-broken-p
            :modify-health
            :modify-mana
            :modify-gold

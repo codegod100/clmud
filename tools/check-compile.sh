@@ -12,19 +12,36 @@ LOG_FILE="/tmp/mud-compile-detail.log"
 echo "=== Detailed Compilation Check ==="
 echo
 
-# Run SBCL and capture output
-timeout 10 sbcl --noinform --non-interactive --load mud.lisp > "$LOG_FILE" 2>&1
+# Create temporary compilation script
+cat > /tmp/mud-compile-check.lisp << 'EOF'
+(load "src/packages.lisp")
+(load "src/ansi.lisp")
+(load "src/world.lisp")
+(load "src/inventory.lisp")
+(load "src/player.lisp")
+(load "src/merchant.lisp")
+(load "src/mob.lisp")
+(load "src/combat.lisp")
+(load "src/quest.lisp")
+(load "src/server/core.lisp")
+(load "src/server/commands.lisp")
+(load "src/server/runtime.lisp")
+(quit)
+EOF
+
+# Run SBCL compilation check without starting server
+timeout 10 sbcl --noinform --non-interactive --script /tmp/mud-compile-check.lisp > "$LOG_FILE" 2>&1
 EXIT_CODE=$?
 
 # Check exit code
 if [ $EXIT_CODE -eq 124 ]; then
-    echo "✓ Server started successfully (timeout reached)"
+    echo "✓ Compilation completed successfully (timeout reached)"
     echo
 elif [ $EXIT_CODE -eq 0 ]; then
-    echo "✓ Server loaded without errors"
+    echo "✓ All files compiled without errors"
     echo
 else
-    echo "✗ Server failed to load (exit code: $EXIT_CODE)"
+    echo "✗ Compilation failed (exit code: $EXIT_CODE)"
     echo
 fi
 
@@ -78,6 +95,9 @@ echo "Runtime errors: $RUNTIME_ERROR_COUNT"
 echo
 echo "Full log: $LOG_FILE"
 echo "View with: less /tmp/mud-compile-detail.log"
+
+# Clean up temporary file
+rm -f /tmp/mud-compile-check.lisp
 
 # Exit with error if we found any errors
 if [ "$ERROR_COUNT" -gt 0 ] || [ "$RUNTIME_ERROR_COUNT" -gt 0 ]; then

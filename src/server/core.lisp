@@ -495,11 +495,23 @@
             (mud.inventory:item-vehicle-type (player-vehicle player))))
          (target-id (and room (neighbor room direction vehicle-type)))
          (target (and target-id (find-room target-id))))
-    (if (null target)
-        (let ((stream (player-stream player)))
-          (write-crlf stream (wrap "You can't go that way." :bright-red))
-          nil)
-        (progn
+    (cond
+      ;; Check if player is in a broken vehicle
+      ((and (player-vehicle player) (mud.player:vehicle-broken-p player))
+       (let ((stream (player-stream player)))
+         (write-crlf stream 
+          (wrap (format nil "Your ~a is broken! You need to repair it before you can move."
+                        (mud.inventory:item-name (player-vehicle player)))
+                :bright-red))
+         nil))
+      ;; Check if target room exists
+      ((null target)
+       (let ((stream (player-stream player)))
+         (write-crlf stream (wrap "You can't go that way." :bright-red))
+         nil))
+      ;; Allow movement
+      (t
+       (progn
          ;; End combat with any mobs in the current room
          (let* ((current-room-id (mud.player::player-room player))
                 (mobs (mud.mob::get-mobs-in-room current-room-id)))
@@ -517,7 +529,7 @@
                   (wrap (room-name room) :bright-cyan))
           :include-self nil)
          (send-room-overview player)
-         t))))
+         t)))))
 
 
 (defun handle-say (player text)

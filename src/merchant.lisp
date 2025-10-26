@@ -246,4 +246,9 @@
                                       :price nil
                                       :quantity :infinite
                                       :buy-value 12
-                                      :description "Lena buys these to send to distant tanners."))))
+                                      :description "Lena buys these to send to distant tanners.")
+                 (make-merchant-stock :template "repair-kit"
+                                      :price 50
+                                      :quantity :infinite
+                                      :buy-value 25
+                                      :description "Essential tools for maintaining vehicles. Restores 10 armor points."))))

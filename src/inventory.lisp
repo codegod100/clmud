@@ -81,7 +81,12 @@
    (make-item :name "gold-coins"
               :type :consumable
               :value 50
-              :description "A small pouch of gold coins."))
+              :description "A small pouch of gold coins.")
+   (make-item :name "repair-kit"
+              :type :consumable
+              :effect :repair-vehicle
+              :value 10
+              :description "A toolkit containing tools and materials to repair vehicles. Restores 10 vehicle armor."))
   "List of item templates")
 
 (defun find-item-template (name)
@@ -267,6 +272,25 @@
                   (mud.inventory::remove-from-inventory player item)
                   (values t (format nil "You drink the ~a and restore ~d health."
                                   item-name (mud.inventory::item-value item)))))))
+
+         (:repair-vehicle
+          (if (null (mud.player:player-vehicle player))
+              (values nil "You need to be in a vehicle to use a repair kit.")
+              (let* ((vehicle-item (mud.player:player-vehicle player))
+                     (vehicle-template (mud.world::find-vehicle (mud.inventory::item-name vehicle-item))))
+                (if vehicle-template
+                    (let ((current-armor (mud.world::vehicle-armor vehicle-template))
+                          (max-armor (mud.world::vehicle-max-armor vehicle-template)))
+                      (if (>= current-armor max-armor)
+                          (values nil "Your vehicle is already in perfect condition.")
+                          (let ((repair-amount (min (mud.inventory::item-value item) 
+                                                   (- max-armor current-armor))))
+                            (setf (mud.world::vehicle-armor vehicle-template) 
+                                  (+ current-armor repair-amount))
+                            (mud.inventory::remove-from-inventory player item)
+                            (values t (format nil "You use the ~a to repair your ~a, restoring ~d armor points."
+                                            item-name (mud.inventory::item-name vehicle-item) repair-amount)))))
+                    (values nil "You can't repair this vehicle.")))))
 
          (t
           (values nil (format nil "~a has an unknown effect." item-name))))))))

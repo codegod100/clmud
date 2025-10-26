@@ -182,6 +182,16 @@
             damage)) ; No vehicle template found, return full damage
       damage)) ; No vehicle, return full damage
 
+(defun vehicle-broken-p (player)
+  "Check if player's vehicle is broken (armor = 0)"
+  (if (player-vehicle player)
+      (let* ((vehicle-item (player-vehicle player))
+             (vehicle-template (mud.world::find-vehicle (mud.inventory:item-name vehicle-item))))
+        (if vehicle-template
+            (zerop (mud.world::vehicle-armor vehicle-template))
+            t)) ; No template found, consider it broken
+      nil)) ; No vehicle, not broken
+
 (defun equip-item (player item)
   "Equip an item (weapon or armor). Returns (values success message)"
   (let ((item-type (mud.inventory:item-type item)))
