@@ -8,6 +8,7 @@
 (eval-when (:compile-toplevel :load-toplevel :execute)
   ;; Load SBCL contribs needed by the server before package definitions run.
   (require :sb-bsd-sockets))
+  (require :asdf)
 
 (load "src/packages.lisp")
 
@@ -18,7 +19,9 @@
 (load "src/mob.lisp")
 (load "src/combat.lisp")
 (load "src/quest.lisp")
-(load "src/server.lisp")
+(load "src/server/core.lisp")
+(load "src/server/commands.lisp")
+(load "src/server/runtime.lisp")
 
 (defun string-prefix-p (prefix string)
   (and (<= (length prefix) (length string))

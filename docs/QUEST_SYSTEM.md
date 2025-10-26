@@ -87,7 +87,7 @@ To add a new quest, edit `src/quest.lisp` in the `initialize-quests` function:
               "Completion message shown to player")
 ```
 
-Then add the quest start command in `src/server.lisp` in the quest handler.
+Then add the quest start command in `src/server/commands.lisp` in the quest handler.
 
 ## Future Enhancements
 

@@ -352,9 +352,12 @@
             (let* ((dir (first exit))
                    ;; Handle exit formats: (:dir . dest) or (:dir :type . dest)
                    (rest-of-exit (cdr exit))
-                   (dest-id (if (and (consp rest-of-exit) (keywordp (car rest-of-exit)))
-                               (cdr rest-of-exit)  ; (:dir :type . dest) -> skip movement type
-                               rest-of-exit))      ; (:dir . dest) -> direct destination
+                   ;; Check if second element is a keyword (movement type)
+                   (has-movement-type (and (consp rest-of-exit) (keywordp (car rest-of-exit))))
+                   (movement-type (when has-movement-type (car rest-of-exit)))
+                   (dest-id (if has-movement-type
+                               (cdr rest-of-exit)  ; (:dir :type . dest)
+                               rest-of-exit))      ; (:dir . dest)
                    (delta (direction-delta dir))
                    (new-x (+ x (first delta)))
                    (new-y (+ y (second delta))))
@@ -362,8 +365,18 @@
               ;; For air vehicles, show sky rooms. For ground, show ground rooms.
               (let ((is-sky-room (and (symbolp dest-id)
                                       (search "SKY" (symbol-name dest-id)))))
+                ;; Only add room if:
+                ;; 1. Not already visited
+                ;; 2. Not up/down direction
+                ;; 3. Movement type matches vehicle (or no restriction)
+                ;; 4. Sky/ground level matches vehicle type
                 (unless (or (gethash dest-id visited)
                            (member dir '(:up :down))
+                           ;; Check movement type compatibility
+                           (and has-movement-type movement-type vehicle-type
+                                (not (eq movement-type vehicle-type))
+                                (not (eq vehicle-type :air))  ; Air can go anywhere
+                                (not (eq vehicle-type :uber))) ; Uber can go anywhere
                            ;; Skip sky rooms when on ground, skip ground rooms when in air
                            (if (eq vehicle-type :air)
                                (not is-sky-room)

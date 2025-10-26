@@ -5,19 +5,19 @@
   (declaim (ftype (function (t t) *) mud.world:remove-item-from-room))
   (declaim (ftype (function (t t) *) mud.world:find-item-in-room)))
 
-;;; Item structure
-(defstruct item
-  (name "" :type string)
-  (type :consumable :type keyword)  ; :consumable, :weapon, :armor, :key, :vehicle, etc.
-  (effect nil :type (or null keyword))  ; :restore-mana, :restore-health, etc.
-  (value 0 :type integer)  ; Amount of effect (mana/health restored, etc.)
-  (description "" :type string)
-  (vehicle-type nil :type (or null keyword))  ; :water, :uber, etc. (for vehicle items)
-  (portable t :type boolean)  ; Can this item be picked up?
-  ;; Equipment stats
-  (damage 0 :type integer)  ; Weapon damage bonus
-  (armor 0 :type integer)   ; Armor defense rating
-  (slot nil :type (or null keyword)))  ; :weapon, :armor, :head, :hands, etc.
+;;; Item structure - define early so accessors can be inlined
+(eval-when (:compile-toplevel :load-toplevel :execute)
+  (defstruct item
+    name
+    type
+    description
+    (portable t :type boolean)
+    (damage 0 :type integer)
+    (armor 0 :type integer)
+    (vehicle-type nil)
+    (effect nil)           ; For consumable effects
+    (value 0 :type integer) ; For effect values (healing/mana amount)
+    (slot nil)))           ; Equipment slot (:weapon or :armor)
 
 ;;; Item templates (blueprints for creating items)
 (defparameter *item-templates*

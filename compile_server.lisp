@@ -1,3 +1,6 @@
 (require :sb-bsd-sockets)
 (load "src/packages.lisp")
-(compile-file "src/server.lisp")
+(dolist (file '("src/server/core.lisp"
+								"src/server/commands.lisp"
+								"src/server/runtime.lisp"))
+	(compile-file file))

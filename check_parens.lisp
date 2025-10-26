@@ -50,7 +50,11 @@
       (format t "  ERROR opening file: ~A~%" e)
       nil)))
 
-(let ((files '("src/server.lisp" "src/combat.lisp" "src/inventory.lisp")))
+(let ((files '("src/server/core.lisp"
+               "src/server/commands.lisp"
+               "src/server/runtime.lisp"
+               "src/combat.lisp"
+               "src/inventory.lisp")))
   (dolist (file files)
     (check-file file)
     (read-all-forms file)))
