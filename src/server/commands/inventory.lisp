@@ -92,20 +92,24 @@
                         :include-self nil))
                      (write-crlf stream
                       (wrap "The corpse is empty." :bright-red))))
-               (multiple-value-bind (success message)
-                   (mud.inventory::grab-item player target-name)
-                 (if success
-                     (progn
-                       (incf collected)
-                       (write-crlf stream (wrap message :bright-green))
-                       (mud.server::announce-to-room player
-                        (format nil "~a gets ~a."
-                                (wrap (player-name player)
-                                 :bright-yellow)
-                                target-name)
-                        :include-self nil)
-                       (mud.server::maybe-announce-quest-rewards player))
-                     (write-crlf stream (wrap message :bright-red)))))))
+               ;; Skip vehicles silently - only try to grab portable items
+               (if (mud.inventory::item-portable item)
+                   (multiple-value-bind (success message)
+                       (mud.inventory::grab-item player target-name)
+                     (if success
+                         (progn
+                           (incf collected)
+                           (write-crlf stream (wrap message :bright-green))
+                           (mud.server::announce-to-room player
+                            (format nil "~a gets ~a."
+                                    (wrap (player-name player)
+                                     :bright-yellow)
+                                    target-name)
+                            :include-self nil)
+                           (mud.server::maybe-announce-quest-rewards player))
+                         (write-crlf stream (wrap message :bright-red))))
+                   ;; Silently skip non-portable items (like vehicles)
+                   nil))))
        (when (zerop collected)
          (write-crlf stream
           (wrap "You fail to pick up anything." :bright-red)))))))
@@ -118,8 +122,7 @@
   (let ((item-name (string-trim '(#\  #\Tab) rest)))
     (cond
       ((zerop (length item-name))
-       (write-crlf (player-stream player)
-        (wrap "Equip what? Usage: equip <item>" :bright-red)))
+       (handle-equip-all player))
       ((string-equal item-name "all")
        (handle-equip-all player))
       (t

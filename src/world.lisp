@@ -403,32 +403,33 @@
     (list min-x max-x min-y max-y)))
 
 (defun abbreviate-room-name (room-id)
-  "Create a short abbreviation for a room name"
+  "Create a short abbreviation for a room name with ASCII symbols"
   (let ((room (find-room room-id)))
     (if room
         (let ((name (room-name room)))
           (cond
-            ;; Special cases for better readability
-            ((string= name "Village Square") "Village")
-            ((string= name "The Bronze Badger") "Tavern")
-            ((string= name "Tavern Loft") "T.Loft")
-            ((string= name "Whispering Wood") "Forest")
-            ((string= name "Moonlit Lane") "Lane")
-            ((string= name "Closing Market") "Market")
-            ((string= name "Riverbank") "River")
-            ((string= name "Hidden Cove") "Cove")
-            ((string= name "Graveyard") "Grave")
-            ((string= name "Village Garden") "Garden")
+            ;; Special cases with ASCII symbols
+            ((string= name "Village Square") "[V] Village")
+            ((string= name "The Bronze Badger") "[T] Tavern")
+            ((string= name "Tavern Loft") "[L] Loft")
+            ((string= name "Whispering Wood") "[F] Forest")
+            ((string= name "Moonlit Lane") "[R] Lane")
+            ((string= name "Closing Market") "[M] Market")
+            ((string= name "Riverbank") "[~] River")
+            ((string= name "Hidden Cove") "[C] Cove")
+            ((string= name "Graveyard") "[G] Grave")
+            ((string= name "Village Garden") "[H] Garden")
+            ((string= name "Ancient Grove") "[A] Grove")
             ;; Sky rooms
-            ((string= name "Sky Above the Village") "SkyVill")
-            ((string= name "Sky Above the Whispering Wood") "SkyWood")
-            ((string= name "Sky Above the Market") "SkyMrkt")
-            ((string= name "Sky Above the River") "SkyRivr")
-            ((string= name "Sky Above the Graveyard") "SkyGrvy")
-            ;; Default: take first word or first 7 chars
+            ((string= name "Sky Above the Village") "[^] SkyVill")
+            ((string= name "Sky Above the Whispering Wood") "[^] SkyWood")
+            ((string= name "Sky Above the Market") "[^] SkyMrkt")
+            ((string= name "Sky Above the River") "[^] SkyRivr")
+            ((string= name "Sky Above the Graveyard") "[^] SkyGrvy")
+            ;; Default: take first word with a generic symbol
             (t (let ((first-word (subseq name 0 (or (position #\Space name) (length name)))))
-                 (subseq first-word 0 (min 7 (length first-word)))))))
-        "???")))
+                 (format nil "[*] ~a" (subseq first-word 0 (min 6 (length first-word))))))))
+        "[?] ???")))
 
 (defun generate-map (current-room-id &optional (vehicle-type nil))
   "Render an ASCII map centred on CURRENT-ROOM-ID. When VEHICLE-TYPE is :air,
@@ -461,7 +462,7 @@
                         (t
                          (setf (aref grid y x) (list room-id)))))))
 
-            ;; Draw connectors so navigation routes are visible.
+            ;; Draw connectors so navigation routes are visible with aesthetic symbols
             (loop for room-id being the hash-keys of coords
                   using (hash-value pos) do
                   (let* ((x (* (- (first pos) min-x) 2))
@@ -473,7 +474,9 @@
                                (rest (cdr exit))
                                (dest-id (if (and (consp rest) (keywordp (car rest)))
                                             (cdr rest)
-                                            rest)))
+                                            rest))
+                               (exit-type (when (and (consp rest) (keywordp (car rest)))
+                                           (car rest))))
                           (when (and (gethash dest-id coords)
                                      (not (member dir '(:up :down))))
                             (let* ((delta (direction-delta dir))
@@ -484,10 +487,22 @@
                                          (<= 0 conn-y) (< conn-y height))
                                 (setf (aref grid conn-y conn-x)
                                       (case dir
-                                        ((:north :south) :conn-vertical)
-                                        ((:east :west) :conn-horizontal)
-                                        ((:northeast :southwest) :conn-ne-sw)
-                                        ((:northwest :southeast) :conn-nw-se)
+                                        ((:north :south) 
+                                         (if (eq exit-type :water) :conn-water-vertical
+                                             (if (eq exit-type :air) :conn-air-vertical
+                                                 :conn-vertical)))
+                                        ((:east :west) 
+                                         (if (eq exit-type :water) :conn-water-horizontal
+                                             (if (eq exit-type :air) :conn-air-horizontal
+                                                 :conn-horizontal)))
+                                        ((:northeast :southwest) 
+                                         (if (eq exit-type :water) :conn-water-ne-sw
+                                             (if (eq exit-type :air) :conn-air-ne-sw
+                                                 :conn-ne-sw)))
+                                        ((:northwest :southeast) 
+                                         (if (eq exit-type :water) :conn-water-nw-se
+                                             (if (eq exit-type :air) :conn-air-nw-se
+                                                 :conn-nw-se)))
                                         (t :conn-unknown))))))))))
 
             ;; Compute renderable strings per cell and track column widths.
@@ -497,10 +512,22 @@
                 (loop for x from 0 below width do
                   (let* ((cell (aref grid y x))
                          (text (cond
-                                 ((eq cell :conn-horizontal) "---")
+                                 ;; Enhanced connector symbols (ASCII)
+                                 ((eq cell :conn-horizontal) "===")
                                  ((eq cell :conn-vertical) " | ")
                                  ((eq cell :conn-ne-sw) " / ")
-                                 ((eq cell :conn-nw-se) " \ ")
+                                 ((eq cell :conn-nw-se) " \\ ")
+                                 ;; Water connectors
+                                 ((eq cell :conn-water-horizontal) "---")
+                                 ((eq cell :conn-water-vertical) " - ")
+                                 ((eq cell :conn-water-ne-sw) " - ")
+                                 ((eq cell :conn-water-nw-se) " - ")
+                                 ;; Air connectors
+                                 ((eq cell :conn-air-horizontal) "...")
+                                 ((eq cell :conn-air-vertical) " . ")
+                                 ((eq cell :conn-air-ne-sw) " . ")
+                                 ((eq cell :conn-air-nw-se) " . ")
+                                 ;; Room cells with enhanced formatting
                                  ((listp cell)
                                   (let* ((rooms (if (member current-room-id cell :test #'eq)
                                                     (cons current-room-id
@@ -512,30 +539,45 @@
                                                            (abbr (if room
                                                                      (abbreviate-room-name rid)
                                                                      (symbol-name rid)))
-                                                           (marker (if (eq rid current-room-id) "*" "")))
+                                                           (marker (if (eq rid current-room-id) " *" "")))
                                                       (format nil "~a~a" abbr marker)))
                                                   rooms)))
-                                    (format nil "[~{~a~^|~}]" labels)))
+                                    (format nil "+-~{~a~^-+-~}-+" labels)))
                                  ((symbolp cell)
                                   (let ((room (find-room cell)))
                                     (if room
-                                        (format nil "[~a~a]"
+                                        (format nil "+-~a~a-+"
                                                 (abbreviate-room-name cell)
-                                                (if (eq cell current-room-id) "*" ""))
+                                                (if (eq cell current-room-id) " *" ""))
                                         "")))
-                                 (t ""))))
+                                 (t "   "))))
                     (setf (aref cell-strings y x) text)
                     (setf (aref col-widths x)
                           (max (aref col-widths x) (max 3 (length text)))))))
 
               (let ((rendered
                      (with-output-to-string (s)
+                       ;; Header with ASCII art
                        (format s "~%")
+                       (format s "    +=========================================+~%")
+                       (format s "    |              WORLD MAP                  |~%")
+                       (format s "    +=========================================+~%")
+                       (format s "~%")
+                       ;; Map content
                        (loop for y from 0 below height do
                          (loop for x from 0 below width do
                            (format s "~v<~a~>" (aref col-widths x)
                                    (aref cell-strings y x)))
                          (format s "~%"))
-                       (format s "~%* = Your location~%"))))
+                       ;; Footer with legend
+                       (format s "~%")
+                       (format s "    +=========================================+~%")
+                       (format s "    | LEGEND:                                 |~%")
+                       (format s "    |   * = Your current location             |~%")
+                       (format s "    |   === = Regular paths                   |~%")
+                       (format s "    |   --- = Water routes (need boat)        |~%")
+                       (format s "    |   ... = Air routes (need flying vehicle)|~%")
+                       (format s "    |   [V] = Village, [T] = Tavern, etc.     |~%")
+                       (format s "    +=========================================+~%"))))
                 (return-from generate-map rendered)))))))))
 
