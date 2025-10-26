@@ -7,4 +7,16 @@ alwaysApply: true
 - Run `./dev.sh validate` after edits for balance + compilation; use `./dev.sh balance` when checking structure mid-edit.
 - Keep edits s-expression-safe; prefer the helpers and guidance in [DEVELOPMENT.md](mdc:docs/DEVELOPMENT.md) and store tooling in `tools/`.
 - For diagnostics, rely on the `dev.sh` subcommands (`check`, `test`, `clean`) described in [DEVELOPMENT.md](mdc:docs/DEVELOPMENT.md).
-- only create new test files in tests dir
+
+## Testing
+
+- **ALWAYS create new test files in the `tests/` directory** - never in the project root
+- Use the organized test structure:
+  - `tests/unit/` - Unit tests for individual components
+  - `tests/commands/` - Command-specific tests  
+  - `tests/integration/` - Integration tests for workflows
+- Run tests with `./dev.sh tests` (all), `./dev.sh tests-unit`, `./dev.sh tests-cmd`, or `./dev.sh tests-int`
+- Individual test files can be run directly: `sbcl --script tests/unit/test-command-registration.lisp`
+- Follow the test naming convention: `test-<descriptive-name>.lisp`
+- Include proper error handling with `handler-case` in test files
+- See [tests/README.md](mdc:tests/README.md) for detailed testing guidelines

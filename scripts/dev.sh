@@ -28,6 +28,10 @@ show_help() {
     echo "  show <file> <index> - Show a specific form"
     echo "  clean         - Remove temporary files"
     echo "  test          - Run a quick connection test"
+    echo "  tests         - Run the full test suite"
+    echo "  tests-unit    - Run unit tests only"
+    echo "  tests-cmd     - Run command tests only"
+    echo "  tests-int     - Run integration tests only"
     echo "  help          - Show this help"
     echo
     echo "Examples:"
@@ -122,6 +126,30 @@ cmd_test() {
     wait $SERVER_PID 2>/dev/null || true
 }
 
+cmd_tests() {
+    echo -e "${BLUE}Running full test suite...${NC}"
+    cd tests
+    ./run-tests.sh all
+}
+
+cmd_tests_unit() {
+    echo -e "${BLUE}Running unit tests...${NC}"
+    cd tests
+    ./run-tests.sh unit
+}
+
+cmd_tests_cmd() {
+    echo -e "${BLUE}Running command tests...${NC}"
+    cd tests
+    ./run-tests.sh commands
+}
+
+cmd_tests_int() {
+    echo -e "${BLUE}Running integration tests...${NC}"
+    cd tests
+    ./run-tests.sh integration
+}
+
 # Main command dispatcher
 case "${1:-help}" in
     start)
@@ -147,6 +175,18 @@ case "${1:-help}" in
         ;;
     test)
         cmd_test
+        ;;
+    tests)
+        cmd_tests
+        ;;
+    tests-unit)
+        cmd_tests_unit
+        ;;
+    tests-cmd)
+        cmd_tests_cmd
+        ;;
+    tests-int)
+        cmd_tests_int
         ;;
     help|--help|-h)
         show_help
