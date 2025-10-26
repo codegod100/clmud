@@ -2,12 +2,12 @@
 (load "src/packages.lisp")
 
 ;; Read forms 1-46
-(with-open-file (s "src/server.lisp")
+(with-open-file (s "src/server/commands.lisp")
   (dotimes (i 46)
     (read s)))
 
 ;; Now try to read handle-command and see how deep we are
-(with-open-file (s "src/server.lisp")
+(with-open-file (s "src/server/commands.lisp")
   ;; Skip to position 29869
   (file-position s 29869)
   (handler-case

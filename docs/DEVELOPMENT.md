@@ -49,11 +49,11 @@ All development tools are located in the `tools/` directory. Use the `dev.sh` sc
 # Check parenthesis balance
 ./dev.sh balance
 
-# List top-level forms in a file
-./dev.sh list src/server.lisp
+# List top-level forms in the command module
+./dev.sh list src/server/commands.lisp
 
-# Show a specific form
-./dev.sh show src/server.lisp 46
+# Show a specific command form
+./dev.sh show src/server/commands.lisp 46
 
 # Clean temporary files
 ./dev.sh clean
@@ -92,7 +92,7 @@ clmud/
 │   ├── combat.lisp        # Combat and damage mechanics
 │   ├── quest.lisp         # Quest system
 │   ├── mob.lisp           # Mobile entities (NPCs)
-│   └── server.lisp        # Main server and command handling
+│   └── server/            # Server runtime modules (core, commands, runtime)
 ├── tools/                 # Development utilities
 │   ├── README.md          # Tool documentation
 │   ├── *.py               # Python balance checkers
@@ -118,7 +118,7 @@ clmud/
 ### Key Systems
 
 #### Command Handling
-The `handle-command` function in `src/server.lisp` is the main command dispatcher. It uses a large `cond` to route player commands to appropriate handlers.
+The `handle-command` function in `src/server/commands.lisp` is the main command dispatcher. It uses a large `cond` to route player commands to appropriate handlers.
 
 #### Combat System
 - Player vs Mob combat
@@ -179,25 +179,26 @@ The `handle-command` function in `src/server.lisp` is the main command dispatche
 
 ```bash
 # List all top-level forms
-sbcl --script tools/sexp-edit.lisp list src/server.lisp
+sbcl --script tools/sexp-edit.lisp list src/server/commands.lisp
 
 # Extract a form for editing
-sbcl --script tools/sexp-edit.lisp show src/server.lisp 46 > /tmp/form.lisp
+sbcl --script tools/sexp-edit.lisp show src/server/commands.lisp 46 > /tmp/form.lisp
 
 # Edit /tmp/form.lisp manually
 
 # Replace the form
-sbcl --script tools/sexp-edit.lisp replace src/server.lisp 46 \
-  "$(cat /tmp/form.lisp)" src/server-new.lisp
+sbcl --script tools/sexp-edit.lisp replace src/server/commands.lisp 46 \
+   "$(cat /tmp/form.lisp)" src/server/commands-new.lisp
 
 # Validate and move
-./dev.sh validate src/server-new.lisp && mv src/server-new.lisp src/server.lisp
+./dev.sh validate src/server/commands-new.lisp && \
+   mv src/server/commands-new.lisp src/server/commands.lisp
 ```
 
 ## Known Issues
 
 ### Compilation Warning
-There is 1 non-fatal "illegal function call" compilation warning in `handle-command`. This does not prevent the server from running and all functionality works correctly. The warning indicates SBCL detects potentially unreachable code, but it doesn't affect execution.
+There is 1 non-fatal "illegal function call" compilation warning in `handle-command` (`src/server/commands.lisp`). This does not prevent the server from running and all functionality works correctly. The warning indicates SBCL detects potentially unreachable code, but it doesn't affect execution.
 
 **Impact:** None - server runs perfectly
 **Status:** Non-critical, cosmetic issue
@@ -233,7 +234,7 @@ quit
 
 ### Adding a New Command
 
-1. Open `src/server.lisp`
+1. Open `src/server/commands.lisp`
 2. Find the `handle-command` function (form 46)
 3. Add a new cond clause:
    ```lisp
@@ -279,8 +280,8 @@ pkill -f "sbcl.*mud.lisp"
 
 ### Unbalanced Parentheses
 ```bash
-python3 tools/lisp-safe-edit.py src/server.lisp
-python3 tools/check-paren-balance.py src/server.lisp
+python3 tools/lisp-safe-edit.py src/server/commands.lisp
+python3 tools/check-paren-balance.py src/server/commands.lisp
 ```
 
 ### Compilation Errors

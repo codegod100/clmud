@@ -33,8 +33,8 @@ show_help() {
     echo "Examples:"
     echo "  ./dev.sh start"
     echo "  ./dev.sh validate"
-    echo "  ./dev.sh list src/server.lisp"
-    echo "  ./dev.sh show src/server.lisp 46"
+    echo "  ./dev.sh list src/server/commands.lisp"
+    echo "  ./dev.sh show src/server/commands.lisp 46"
 }
 
 cmd_start() {

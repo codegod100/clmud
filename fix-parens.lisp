@@ -93,8 +93,8 @@
             do (write-line (fix-line line) out)))))
 
 ;; Main execution
-(let ((input-file "src/server.lisp")
-      (output-file "src/server.lisp.fixed"))
+(let ((input-file "src/server/core.lisp")
+  (output-file "src/server/core.lisp.fixed"))
   (format t "Fixing parentheses in ~A...~%" input-file)
   (process-file input-file output-file)
   (format t "Done! Output written to ~A~%" output-file)

@@ -18,7 +18,7 @@ Safe editing tool that validates parenthesis balance before making changes.
 **Usage:**
 ```bash
 # Check if a file is balanced
-python3 tools/lisp-safe-edit.py src/server.lisp
+python3 tools/lisp-safe-edit.py src/server/commands.lisp
 
 # Replace lines (safely)
 python3 tools/lisp-safe-edit.py <file> <start-line> <end-line> <new-content>
@@ -26,7 +26,7 @@ python3 tools/lisp-safe-edit.py <file> <start-line> <end-line> <new-content>
 
 **Example:**
 ```bash
-python3 tools/lisp-safe-edit.py src/server.lisp 100 100 '       (write-crlf stream "test")))'
+python3 tools/lisp-safe-edit.py src/server/commands.lisp 100 100 '       (write-crlf stream "test")))'
 ```
 
 The tool will:
@@ -39,7 +39,7 @@ Shows running parenthesis depth through a file to identify where imbalances occu
 
 **Usage:**
 ```bash
-python3 tools/check-paren-balance.py src/server.lisp
+python3 tools/check-paren-balance.py src/server/commands.lisp
 ```
 
 **Output:**
@@ -55,7 +55,7 @@ Finds top-level forms that don't properly close (should return to depth 1).
 
 **Usage:**
 ```bash
-python3 tools/find-unbalanced.py src/server.lisp
+python3 tools/find-unbalanced.py src/server/commands.lisp
 ```
 
 ### paren-fix.lisp
@@ -64,18 +64,18 @@ SBCL script that both reports imbalance data and optionally rewrites files to ba
 **Usage:**
 ```bash
 # Inspect a file
-sbcl --script tools/paren-fix.lisp check src/server.lisp
+sbcl --script tools/paren-fix.lisp check src/server/commands.lisp
 
 # Write a balanced copy
-sbcl --script tools/paren-fix.lisp fix src/server.lisp /tmp/server-fixed.lisp
+sbcl --script tools/paren-fix.lisp fix src/server/commands.lisp /tmp/server-fixed.lisp
 
 # Balance in place (overwrites!)
-sbcl --script tools/paren-fix.lisp fix src/server.lisp --in-place
+sbcl --script tools/paren-fix.lisp fix src/server/commands.lisp --in-place
 ```
 
 **Output:**
 ```
-File: src/server.lisp
+File: src/server/commands.lisp
   Opens:   15823
   Closes:  15820
   Status: UNBALANCED (diff 3)
@@ -122,13 +122,13 @@ sbcl --script tools/sexp-edit.lisp replace <file> <index> '<form>' <output-file>
 **Examples:**
 ```bash
 # See all top-level forms in server.lisp
-sbcl --script tools/sexp-edit.lisp list src/server.lisp
+sbcl --script tools/sexp-edit.lisp list src/server/commands.lisp
 
 # Show form 46 (handle-command)
-sbcl --script tools/sexp-edit.lisp show src/server.lisp 46
+sbcl --script tools/sexp-edit.lisp show src/server/commands.lisp 46
 
 # Replace a defun
-sbcl --script tools/sexp-edit.lisp replace src/server.lisp 10 \
+sbcl --script tools/sexp-edit.lisp replace src/server/commands.lisp 10 \
   '(defun test () (format t "Hello~%"))' /tmp/output.lisp
 ```
 
@@ -202,9 +202,9 @@ timeout 5 sbcl --script mud.lisp 2>&1 | grep -c "illegal function call"
 
 1. **Always check balance before manual edits:**
    ```bash
-   python3 tools/lisp-safe-edit.py src/server.lisp
+   python3 tools/lisp-safe-edit.py src/server/commands.lisp
    # OR
-   sbcl --script tools/sexp-edit.lisp check src/server.lisp
+   sbcl --script tools/sexp-edit.lisp check src/server/commands.lisp
    ```
 
 2. **Prefer s-expression level editing:**

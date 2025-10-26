@@ -1,32 +1,28 @@
-# Server.lisp Refactoring Summary
+# Server Command Refactoring Summary
 
 ## Overview
 
-Successfully refactored `src/server.lisp` by extracting large command implementations from the `handle-command` function into smaller, reusable helper functions.
+Successfully refactored the server modules by extracting large command implementations from the monolithic server into dedicated files under `src/server/`.
 
 ## Results
 
-- **Original size**: 1,780 lines
+Successfully refactored the server modules by extracting large command implementations into `src/server/commands.lisp`, leaving core networking logic in `src/server/core.lisp`.
 - **Refactored size**: 1,351 lines
 - **Lines saved**: 429 lines (24% reduction)
 - **Status**: ✅ Complete (parenthesis balanced)
 
 ## Changes Made
 
-### New Helper Functions Added
-
-#### Combat Command Handlers (Lines 612-825)
-
 1. **`handle-attack-command (player target-name)`**
-   - Handles melee attack against a mob
+python3 tools/refactor.py src/server/commands.lisp src/server/commands.lisp.new
    - Replaced 91 lines of inline code with 4-line function call
 
 2. **`handle-ram-command (player target-name)`**
-   - Handles vehicle ram attack
+The refactoring lives in `src/server/commands.lisp` and the file is ready to use. All helper functions are defined before `handle-command` and are properly scoped within the `MUD.SERVER` package.
    - Replaced 103 lines of inline code with 4-line function call
 
 3. **`handle-bomb-command (player)`**
-   - Handles aerial bombing from UFO
+- `src/server/commands.lisp` - Main refactoring applied
    - Replaced 75 lines of inline code with 2-line function call
 
 4. **Supporting combat functions**:
@@ -109,12 +105,12 @@ Python script that performs the refactoring automatically:
 
 ### Usage:
 ```bash
-python3 tools/refactor.py src/server.lisp src/server.lisp.new
+python3 tools/refactor.py src/server/commands.lisp src/server/commands.lisp.new
 ```
 
 ## Migration Notes
 
-The refactoring was applied to `src/server.lisp` and the file is ready to use. All helper functions are defined before `handle-command` and are properly scoped within the `MUD.SERVER` package.
+The refactoring was applied to `src/server/commands.lisp` and the file is ready to use. All helper functions are defined before `handle-command` and are properly scoped within the `MUD.SERVER` package.
 
 ## Next Steps (Optional)
 
@@ -126,7 +122,7 @@ Future refactoring opportunities:
 
 ## Files Modified
 
-- `src/server.lisp` - Main refactoring applied
+- `src/server/commands.lisp` - Main refactoring applied
 - `docs/REFACTORING_SUMMARY.md` - This file
 - `docs/refactoring-handle-command.md` - Detailed refactoring guide
 - `tools/refactor.py` - Automated refactoring script

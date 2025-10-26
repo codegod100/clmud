@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Apply refactoring to handle-command in server.lisp
+Apply refactoring to handle-command in src/server/commands.lisp.
 This script replaces large inline command implementations with calls to helper functions.
 Uses manual line ranges to avoid paren-matching errors.
 """
@@ -111,7 +111,9 @@ def apply_refactoring(input_file, output_file):
 if __name__ == "__main__":
     if len(sys.argv) != 3:
         print("Usage: python3 refactor.py input_file output_file")
-        print("Example: python3 refactor.py src/server.lisp src/server.lisp.new")
+        print(
+            "Example: python3 refactor.py src/server/commands.lisp src/server/commands.lisp.new"
+        )
         sys.exit(1)
 
     input_file = sys.argv[1]

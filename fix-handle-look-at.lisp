@@ -42,7 +42,7 @@
           forms))
 
 ;; Read the file
-(let ((forms (read-all-forms "src/server.lisp")))
+(let ((forms (read-all-forms "src/server/core.lisp")))
   (format t "Read ~d top-level forms~%" (length forms))
 
   ;; Find handle-look-at
@@ -54,5 +54,5 @@
         (format t "ERROR: Could not find handle-look-at~%")))
 
   ;; Write back
-  (write-all-forms "src/server.lisp" forms)
-  (format t "Wrote reformatted file to src/server.lisp~%"))
+  (write-all-forms "src/server/core.lisp" forms)
+  (format t "Wrote reformatted file to src/server/core.lisp~%"))
