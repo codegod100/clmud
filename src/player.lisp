@@ -254,26 +254,47 @@
 ;; Persistence helpers for server snapshots.
 
 (defun %serialize-item (item)
+  "Serialize an item by storing its template name instead of all attributes"
   (when item
-    (let ((result (list :name (mud.inventory:item-name item)
-                        :type (mud.inventory:item-type item)
-                        :description (mud.inventory:item-description item)
-                        :portable (mud.inventory:item-portable item)
-                        :damage (mud.inventory:item-damage item)
-                        :armor (mud.inventory:item-armor item)
-                        :value (mud.inventory:item-value item))))
-      ;; Only include optional fields if they have values
-      (when (mud.inventory:item-vehicle-type item)
-        (setf result (append result (list :vehicle-type (mud.inventory:item-vehicle-type item)))))
-      (when (mud.inventory:item-effect item)
-        (setf result (append result (list :effect (mud.inventory:item-effect item)))))
-      (when (mud.inventory:item-slot item)
-        (setf result (append result (list :slot (mud.inventory:item-slot item)))))
-      result)))
+    (mud.inventory:item-name item)))
+
+(defun %serialize-inventory-with-quantities (inventory)
+  "Serialize inventory as item quantities instead of individual items"
+  (when inventory
+    (let ((item-counts (make-hash-table :test #'equal)))
+      ;; Count each item type
+      (dolist (item inventory)
+        (when item
+          (let ((item-name (mud.inventory:item-name item)))
+            (incf (gethash item-name item-counts 0)))))
+      ;; Convert to alist
+      (let ((result nil))
+        (maphash (lambda (name count)
+                   (push (cons name count) result))
+                 item-counts)
+        (nreverse result)))))
 
 (defun %deserialize-item (data)
+  "Deserialize an item by creating it from the template name"
   (when data
-    (apply #'mud.inventory:make-item data)))
+    (if (stringp data)
+        ;; New format: just the template name
+        (mud.inventory:create-item data)
+        ;; Old format: full item data (for backwards compatibility)
+        (apply #'mud.inventory:make-item data))))
+
+(defun %deserialize-inventory-with-quantities (data)
+  "Deserialize inventory from item quantities"
+  (when data
+    (let ((inventory nil))
+      (dolist (item-quantity data)
+        (let ((item-name (car item-quantity))
+              (quantity (cdr item-quantity)))
+          (dotimes (i quantity)
+            (let ((item (mud.inventory:create-item item-name)))
+              (when item
+                (push item inventory))))))
+      (nreverse inventory))))
 
 (defun %quest-state->alist (table)
   (when table
@@ -300,7 +321,7 @@
                                  (not (member (player-equipped-armor player) items :test #'eq)))
                         (push (player-equipped-armor player) result))
                       result))
-         (serialized (mapcar #'%serialize-item all-items))
+         (serialized (%serialize-inventory-with-quantities all-items))
          (weapon-index (and (player-equipped-weapon player)
                             (position (player-equipped-weapon player) all-items :test #'eq)))
          (armor-index (and (player-equipped-armor player)
@@ -308,7 +329,11 @@
     (values serialized weapon-index armor-index)))
 
 (defun %restore-inventory (player data weapon-index armor-index)
-  (let ((items (mapcar #'%deserialize-item data)))
+  (let ((items (if (and data (listp data) (consp (first data)))
+                   ;; New format: item quantities
+                   (%deserialize-inventory-with-quantities data)
+                   ;; Old format: individual items
+                   (mapcar #'%deserialize-item data))))
     (setf (player-inventory player) items)
     (when (and (integerp weapon-index) (<= 0 weapon-index) (< weapon-index (length items)))
       (setf (player-equipped-weapon player) (nth weapon-index items)))
