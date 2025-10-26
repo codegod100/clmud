@@ -96,11 +96,17 @@
 
 (defun modify-health (player delta)
   "Add or subtract health from player, clamping to 0..max-health"
-  (set-player-health player (+ (player-health player) delta)))
+  (set-player-health player (+ (player-health player) delta))
+  ;; Auto-show status when health changes
+  (when (and (player-stream player) (not (zerop delta)))
+    (show-simple-status player)))
 
 (defun modify-mana (player delta)
   "Add or subtract mana from player, clamping to 0..max-mana"
-  (set-player-mana player (+ (player-mana player) delta)))
+  (set-player-mana player (+ (player-mana player) delta))
+  ;; Auto-show status when mana changes
+  (when (and (player-stream player) (not (zerop delta)))
+    (show-simple-status player)))
 
 (defun modify-gold (player delta)
   "Adjust player gold, never letting it drop below zero."
@@ -131,6 +137,9 @@
                (setf (player-health player) (player-max-health player))
                (setf (player-max-mana player) (+ (player-max-mana player) 5))
                (setf (player-mana player) (player-max-mana player))))
+    ;; Auto-show status when XP is awarded or player levels up
+    (when (and (player-stream player) (or (not (zerop amount)) leveled-up))
+      (show-simple-status player))
     leveled-up))
 
 (defun xp-to-next-level (player)
@@ -296,6 +305,24 @@
       (setf (player-equipped-weapon player) (nth weapon-index items)))
     (when (and (integerp armor-index) (<= 0 armor-index) (< armor-index (length items)))
       (setf (player-equipped-armor player) (nth armor-index items)))))
+
+(defun show-simple-status (player)
+  "Show basic player status (used for auto-status updates)"
+  (when (player-stream player)
+    (let ((stream (player-stream player)))
+      (format stream "~a~%" 
+              (mud.ansi:wrap
+               (format nil "Health: ~d/~d  Mana: ~d/~d" 
+                       (player-health player) (player-max-health player)
+                       (player-mana player) (player-max-mana player))
+               :bright-cyan))
+      (format stream "~a~%" 
+              (mud.ansi:wrap
+               (format nil "Damage: ~d  Armor: ~d  Gold: ~d" 
+                       (get-player-damage player) (get-player-armor player)
+                       (player-gold player))
+               :bright-cyan))
+      (force-output stream))))
 
 (defun %serialize-player (player)
   (multiple-value-bind (inventory weapon-index armor-index)

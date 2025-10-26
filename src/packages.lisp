@@ -76,6 +76,7 @@
            :collect-player-snapshots
            :restore-player-snapshots
            :detach-player
+           :show-simple-status
            :%serialize-player))
 
 (defpackage :mud.merchant
