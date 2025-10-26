@@ -504,7 +504,7 @@
                      (wrap (player-name player) :bright-yellow)
                      (wrap item-id :bright-green)
                      (wrap (merchant-name merchant) :bright-blue))
-             :include-self nil))))))
+            :include-self nil))))))
 
 (define-command (("use") command-use) (player rest)
   (if (zerop (length rest))
@@ -778,8 +778,8 @@
    "  Other: help, quit, save, . (repeat last command), suicide (test death)"))
   )
 
-(defun force-save-game ()
-  "Force save the game state to disk"
+(defun force-save-game (player)
+  "Force save the current player's state to disk"
   (handler-case
       (let ((path (merge-pathnames #P"data/save-state.lisp" *default-pathname-defaults*)))
         (ensure-directories-exist path)
@@ -789,18 +789,32 @@
                 (*print-escape* t)
                 (*package* (find-package :cl)))
             (format out ";; Saved at ~a (manual)~%" (get-universal-time))
-            (format out ";; Manual save triggered by player~%")
-            (terpri out)
-            (finish-output out)
-            1))) ; Return 1 to indicate success
+            (let ((player-data (list :name (player-name player)
+                                    :room (player-room player)
+                                    :health (player-health player)
+                                    :max-health (player-max-health player)
+                                    :mana (player-mana player)
+                                    :max-mana (player-max-mana player)
+                                    :level (player-level player)
+                                    :xp (player-xp player)
+                                    :gold (player-gold player)
+                                    :inventory nil
+                                    :equipped-weapon-index nil
+                                    :equipped-armor-index nil
+                                    :quest-state nil
+                                    :vehicle nil)))
+              (write (list player-data) :stream out :circle nil)
+              (terpri out)
+              (finish-output out)
+              1))))
     (error (err)
-      (server-log "Failed to save game state: ~a" err)
+      (format t "Save error: ~a~%" err)
       nil)))
 
 (define-command (("save") command-save) (player rest)
   (declare (ignore rest))
   (handler-case
-      (let ((count (force-save-game)))
+      (let ((count (force-save-game player)))
         (cond
           ((null count)
            (write-crlf (player-stream player)
