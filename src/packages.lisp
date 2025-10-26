@@ -44,16 +44,33 @@
            :player-equipped-armor
            :player-vehicle
            :player-quest-state
+           :player-gold
+           :set-player-gold
            :player-alive-p
            :get-player-damage
            :get-player-armor
            :modify-health
            :modify-mana
+           :modify-gold
            :award-xp
            :xp-for-level
            :xp-to-next-level
            :equip-item
            :unequip-item))
+
+(defpackage :mud.merchant
+  (:use :cl)
+  (:export :initialize-merchants
+           :get-merchants-in-room
+           :find-merchant
+           :find-merchant-in-room-by-name
+           :merchant-buy-item
+           :merchant-sell-item
+           :merchant-name
+           :merchant-description
+           :merchant-greeting
+           :merchant-room-id
+           :merchant-stock-summary))
 
 (defpackage :mud.inventory
   (:use :cl)
@@ -139,6 +156,7 @@
         :mud.inventory
         :mud.mob
         :mud.combat
-        :mud.quest)
+    :mud.quest
+    :mud.merchant)
   (:shadow :log)
   (:export :start :stop :await))

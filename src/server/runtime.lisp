@@ -61,6 +61,7 @@
 (defun start (&key (port 4000))
   (when *running* (error "Server already running."))
   (initialize-world)
+  (initialize-merchants)
   (initialize-quests)
   (initialize-mobs)
   (setf *running* t)

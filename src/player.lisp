@@ -5,7 +5,8 @@
            (ftype (function (t) integer) mud.inventory:item-armor)
            (ftype (function (t) keyword) mud.inventory:item-type)
            (ftype (function (t) keyword) mud.inventory:item-slot)
-           (ftype (function (t) string) mud.inventory:item-name)))
+           (ftype (function (t) string) mud.inventory:item-name)
+           (ftype (function (t t) *) mud.inventory:add-to-inventory)))
 
 (defclass player ()
   ((name :initarg :name :accessor player-name)
@@ -21,6 +22,7 @@
    (xp :initarg :xp :accessor player-xp :initform 0)
    (inventory :initarg :inventory :accessor player-inventory :initform nil)
    (quest-state :initarg :quest-state :accessor player-quest-state :initform nil)
+   (gold :initarg :gold :accessor player-gold :initform 0)
    ;; Equipment slots
    (equipped-weapon :initarg :equipped-weapon :accessor player-equipped-weapon :initform nil)
    (equipped-armor :initarg :equipped-armor :accessor player-equipped-armor :initform nil))
@@ -34,6 +36,7 @@
                          :xp 0
                          :inventory nil
                          :quest-state nil
+                         :gold 100
                          :equipped-weapon nil
                          :equipped-armor nil))
 
@@ -46,6 +49,9 @@
 (defun set-player-mana (player value)
   (setf (player-mana player) (max 0 (min value (player-max-mana player)))))
 
+(defun set-player-gold (player value)
+  (setf (player-gold player) (max 0 value)))
+
 (defun modify-health (player delta)
   "Add or subtract health from player, clamping to 0..max-health"
   (set-player-health player (+ (player-health player) delta)))
@@ -53,6 +59,10 @@
 (defun modify-mana (player delta)
   "Add or subtract mana from player, clamping to 0..max-mana"
   (set-player-mana player (+ (player-mana player) delta)))
+
+(defun modify-gold (player delta)
+  "Adjust player gold, never letting it drop below zero."
+  (set-player-gold player (+ (player-gold player) delta)))
 
 (defun player-alive-p (player)
   "Check if player is alive"
@@ -143,5 +153,5 @@
      (values nil "Invalid slot. Use 'weapon' or 'armor'."))))
 
 (defun add-to-inventory (player item)
-  "Add an item to player's inventory"
-  (push item (player-inventory player)))
+  "Forward to inventory:add-to-inventory so currency stays in sync."
+  (mud.inventory:add-to-inventory player item))

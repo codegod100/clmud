@@ -15,6 +15,7 @@
 (load "src/ansi.lisp")
 (load "src/player.lisp")
 (load "src/inventory.lisp")
+(load "src/merchant.lisp")
 (load "src/world.lisp")
 (load "src/mob.lisp")
 (load "src/combat.lisp")

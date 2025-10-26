@@ -80,6 +80,7 @@
               :description "A grey wolf pelt. Could be sold for coin.")
    (make-item :name "gold-coins"
               :type :consumable
+              :value 50
               :description "A small pouch of gold coins."))
   "List of item templates")
 
@@ -95,9 +96,18 @@
     (when template
       (copy-item template))))
 
+(defun currency-item-p (item)
+  (string-equal (item-name item) "gold-coins"))
+
 (defun add-to-inventory (player item)
-  "Add an item to a player's inventory"
-  (push item (mud.player:player-inventory player)))
+  "Add an item to a player's inventory or convert currency to gold."
+  (if (currency-item-p item)
+      (let* ((amount (max 1 (item-value item))))
+        (mud.player:modify-gold player amount)
+        (values :gold amount))
+      (progn
+        (push item (mud.player:player-inventory player))
+        (values :item item))))
 
 (defun remove-from-inventory (player item)
   "Remove an item from a player's inventory"
@@ -121,9 +131,12 @@
   "Return a formatted list of items in player's inventory"
   (let ((inventory (mud.player:player-inventory player)))
     (if (null inventory)
-        "Your inventory is empty."
+        (if (zerop (mud.player:player-gold player))
+            "Your inventory is empty."
+            (format nil "Your inventory is empty, but you carry ~d gold coins." (mud.player:player-gold player)))
         (with-output-to-string (out)
           (format out "Inventory (~d item~:p):~%" (length inventory))
+          (format out "Coins: ~d~%" (mud.player:player-gold player))
           (let ((item-counts (make-hash-table :test 'equal))
                 (equipped-weapon (mud.player:player-equipped-weapon player))
                 (equipped-armor (mud.player:player-equipped-armor player)))
@@ -215,5 +228,8 @@
        (values nil (format nil "~a is too large to pick up." (item-name item))))
       (t
        (mud.world:remove-item-from-room (mud.player:player-room player) item)
-       (add-to-inventory player item)
-       (values t (format nil "You get ~a." item-name))))))
+       (multiple-value-bind (kind payload)
+           (add-to-inventory player item)
+         (values t (if (eq kind :gold)
+                       (format nil "You pick up ~d gold coins." payload)
+                       (format nil "You get ~a." item-name))))))))

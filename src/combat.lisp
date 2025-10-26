@@ -127,12 +127,13 @@
 
 (defun get-player-stats (player)
   "Return a formatted string of player stats"
-  (format nil "Health: ~d/~d | Mana: ~d/~d | Level: ~d"
+  (format nil "Health: ~d/~d | Mana: ~d/~d | Level: ~d | Gold: ~d"
           (mud.player:player-health player)
           (mud.player:player-max-health player)
           (mud.player:player-mana player)
           (mud.player:player-max-mana player)
-          (mud.player:player-level player)))
+          (mud.player:player-level player)
+          (mud.player:player-gold player)))
 
 (defun respawn-player (player)
   "Respawn a dead player with full health and mana, move to village square"
