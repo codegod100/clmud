@@ -108,8 +108,8 @@
 
 (define-command (("flee") command-flee) (player rest)
   (declare (ignore rest))
-  (let ((room-id (player-room player))
-        (mobs (mud.mob::get-mobs-in-room room-id)))
+  (let* ((room-id (player-room player))
+         (mobs (mud.mob::get-mobs-in-room room-id)))
     (let ((combat-mobs (remove-if-not #'mud.mob::mob-in-combat-p mobs)))
       (if combat-mobs
           (progn

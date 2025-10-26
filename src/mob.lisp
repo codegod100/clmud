@@ -236,11 +236,12 @@
   (let ((movements nil))
     (maphash (lambda (room-id mobs)
                (declare (ignore room-id))
-               (dolist (mob mobs)
-                 (multiple-value-bind (moved-mob old-room new-room)
-                     (process-mob-movement mob)
-                   (when moved-mob
-                     (push (list moved-mob old-room new-room) movements)))))
+               (when mobs ; Check if mobs is not nil
+                 (dolist (mob mobs)
+                   (multiple-value-bind (moved-mob old-room new-room)
+                       (process-mob-movement mob)
+                     (when moved-mob
+                       (push (list moved-mob old-room new-room) movements))))))
              *room-mobs*)
     movements))
 
@@ -311,10 +312,11 @@
   (let ((combat-actions nil))
     (maphash (lambda (room-id mobs)
                (declare (ignore room-id))
-               (dolist (mob mobs)
-                 (when (mob-in-combat-p mob)
-                   (let ((action (process-mob-combat-attack mob)))
-                     (when action
-                       (push action combat-actions))))))
+               (when mobs ; Check if mobs is not nil
+                 (dolist (mob mobs)
+                   (when (mob-in-combat-p mob)
+                     (let ((action (process-mob-combat-attack mob)))
+                       (when action
+                         (push action combat-actions)))))))
              *room-mobs*)
     combat-actions))

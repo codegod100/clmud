@@ -501,8 +501,8 @@
           nil)
         (progn
          ;; End combat with any mobs in the current room
-         (let ((current-room-id (mud.player::player-room player))
-               (mobs (mud.mob::get-mobs-in-room current-room-id)))
+         (let* ((current-room-id (mud.player::player-room player))
+                (mobs (mud.mob::get-mobs-in-room current-room-id)))
            (dolist (mob mobs)
              (when (and (mud.mob::mob-in-combat-p mob)
                         (eq (mud.mob::mob-combat-target mob) player))
@@ -550,9 +550,7 @@
   (let ((mob-name (mud.mob::mob-name mob))
         (player-name (mud.player::player-name player))
         (stream (mud.player::player-stream player)))
-    ;; Announce the attack
-    (write-crlf stream
-     (wrap (format nil "~a attacks you!" mob-name) :bright-red))
+    ;; Announce the attack to room (but not to player since damage message follows)
     (announce-to-room player
      (format nil "~a attacks ~a!" 
              (wrap mob-name :bright-red) 
@@ -629,9 +627,7 @@
     ;; Start automatic combat
     (mud.mob::start-combat mob player)
     
-    ;; Announce the start of combat
-    (write-crlf stream
-     (wrap (format nil "~a attacks you!" mob-name) :bright-red))
+    ;; Announce the start of combat to room (but not to player since damage message follows)
     (announce-to-room player
      (format nil "~a attacks ~a!" 
              (wrap mob-name :bright-red) 
