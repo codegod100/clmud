@@ -93,10 +93,10 @@
                (let ((option (read-char stream nil nil)))
                  (when option
                    (ecase cmd-code
-                     (+do+ (send-iac stream +wont+ (char-code option)))
-                     (+dont+ (send-iac stream +wont+ (char-code option)))
-                     (+will+ (send-iac stream +dont+ (char-code option)))
-                     (+wont+ (send-iac stream +dont+ (char-code option)))))
+                     (253 (send-iac stream +wont+ (char-code option)))  ; +do+
+                     (254 (send-iac stream +wont+ (char-code option)))  ; +dont+
+                     (251 (send-iac stream +dont+ (char-code option)))  ; +will+
+                     (252 (send-iac stream +dont+ (char-code option))))) ; +wont+)
                  nil))
               ((= cmd-code +sb+) (skip-subnegotiation stream) nil) (t nil)))))))
 
