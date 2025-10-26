@@ -6,6 +6,12 @@
            (ftype (function (t) keyword) mud.inventory:item-type)
            (ftype (function (t) keyword) mud.inventory:item-slot)
            (ftype (function (t) string) mud.inventory:item-name)
+           (ftype (function (t) string) mud.inventory:item-description)
+           (ftype (function (t) boolean) mud.inventory:item-portable)
+           (ftype (function (t) t) mud.inventory:item-effect)
+           (ftype (function (t) integer) mud.inventory:item-value)
+           (ftype (function (t) keyword) mud.inventory:item-vehicle-type)
+           (ftype (function (&rest t) t) mud.inventory:make-item)
            (ftype (function (t t) *) mud.inventory:add-to-inventory)))
 
 (defclass player ()
@@ -191,3 +197,139 @@
 (defun add-to-inventory (player item)
   "Forward to inventory:add-to-inventory so currency stays in sync."
   (mud.inventory:add-to-inventory player item))
+
+
+;; Persistence helpers for server snapshots.
+
+(defun %serialize-item (item)
+  (when item
+    (list :name (mud.inventory:item-name item)
+          :type (mud.inventory:item-type item)
+          :description (mud.inventory:item-description item)
+          :portable (mud.inventory:item-portable item)
+          :damage (mud.inventory:item-damage item)
+          :armor (mud.inventory:item-armor item)
+          :vehicle-type (mud.inventory:item-vehicle-type item)
+          :effect (mud.inventory:item-effect item)
+          :value (mud.inventory:item-value item)
+          :slot (mud.inventory:item-slot item))))
+
+(defun %deserialize-item (data)
+  (when data
+    (apply #'mud.inventory:make-item data)))
+
+(defun %quest-state->alist (table)
+  (when table
+    (let ((result nil))
+      (maphash (lambda (quest-id state)
+                 (push (cons quest-id state) result))
+               table)
+      (nreverse result))))
+
+(defun %alist->quest-state (alist)
+  (when alist
+    (let ((table (make-hash-table :test #'eq)))
+      (dolist (entry alist table)
+        (setf (gethash (car entry) table) (cdr entry))))))
+
+(defun %serialize-inventory (player)
+  (let* ((items (copy-list (player-inventory player)))
+         (serialized (mapcar #'%serialize-item items))
+         (weapon-index (and (player-equipped-weapon player)
+                            (position (player-equipped-weapon player) items :test #'eq)))
+         (armor-index (and (player-equipped-armor player)
+                           (position (player-equipped-armor player) items :test #'eq))))
+    (values serialized weapon-index armor-index)))
+
+(defun %restore-inventory (player data weapon-index armor-index)
+  (let ((items (mapcar #'%deserialize-item data)))
+    (setf (player-inventory player) items)
+    (when (and (integerp weapon-index) (<= 0 weapon-index) (< weapon-index (length items)))
+      (setf (player-equipped-weapon player) (nth weapon-index items)))
+    (when (and (integerp armor-index) (<= 0 armor-index) (< armor-index (length items)))
+      (setf (player-equipped-armor player) (nth armor-index items)))))
+
+(defun %serialize-player (player)
+  (multiple-value-bind (inventory weapon-index armor-index)
+      (%serialize-inventory player)
+    (list :name (player-name player)
+          :room (player-room player)
+          :health (player-health player)
+          :max-health (player-max-health player)
+          :mana (player-mana player)
+          :max-mana (player-max-mana player)
+          :level (player-level player)
+          :xp (player-xp player)
+          :gold (player-gold player)
+          :inventory inventory
+          :equipped-weapon-index weapon-index
+          :equipped-armor-index armor-index
+          :quest-state (%quest-state->alist (player-quest-state player))
+          :vehicle (player-vehicle player))))
+
+(defun %restore-player (data default-room valid-room-p)
+  (let ((name (getf data :name)))
+    (when (null name)
+      (return-from %restore-player nil))
+    (let* ((requested-room (getf data :room))
+           (initial-room (or requested-room default-room))
+           (player (make-player :name name :room initial-room :stream nil :socket nil)))
+      (when valid-room-p
+        (let ((validated
+                (cond
+                  ((and requested-room (funcall valid-room-p requested-room)) requested-room)
+                  ((and initial-room (funcall valid-room-p initial-room)) initial-room)
+                  ((and default-room (funcall valid-room-p default-room)) default-room)
+                  (t initial-room))))
+          (setf (player-room player) validated)))
+      (let ((max-health (getf data :max-health)))
+        (when max-health
+          (setf (player-max-health player) max-health)))
+      (let ((health (getf data :health)))
+        (when health
+          (set-player-health player health)))
+      (let ((max-mana (getf data :max-mana)))
+        (when max-mana
+          (setf (player-max-mana player) max-mana)))
+      (let ((mana (getf data :mana)))
+        (when mana
+          (set-player-mana player mana)))
+      (let ((level (getf data :level)))
+        (when level
+          (setf (player-level player) level)))
+      (let ((xp (getf data :xp)))
+        (when xp
+          (setf (player-xp player) xp)))
+      (let ((gold (getf data :gold)))
+        (when gold
+          (setf (player-gold player) gold)))
+      (%restore-inventory player
+                          (or (getf data :inventory) '())
+                          (getf data :equipped-weapon-index)
+                          (getf data :equipped-armor-index))
+      (let ((quest (getf data :quest-state)))
+        (setf (player-quest-state player) (%alist->quest-state quest)))
+      (setf (player-vehicle player) (getf data :vehicle))
+      player)))
+
+(defun collect-player-snapshots ()
+  (sb-thread:with-mutex (*player-registry-lock*)
+    (let ((snapshots (loop for player being the hash-values of *player-registry*
+                           collect (%serialize-player player))))
+      (sort snapshots #'string-lessp :key (lambda (entry) (string (getf entry :name "")))))))
+
+(defun restore-player-snapshots (snapshots &key default-room valid-room-p)
+  (sb-thread:with-mutex (*player-registry-lock*)
+    (clrhash *player-registry*)
+    (let ((count 0))
+  (dolist (entry snapshots count)
+    (handler-case
+            (let ((player (%restore-player entry default-room valid-room-p)))
+      (when player
+        (setf (gethash (%normalize-player-key (player-name player)) *player-registry*)
+          player)
+        (incf count)))
+      (error (err)
+    (warn "Failed to restore player snapshot for ~a: ~a"
+      (getf entry :name) err))))
+  count)))

@@ -23,6 +23,8 @@
 (load "src/server/core.lisp")
 (load "src/server/commands.lisp")
 (load "src/server/runtime.lisp")
+(format t "After runtime load: load-game-state defined? ~a~%"
+  (fboundp 'mud.server::load-game-state))
 
 (defun string-prefix-p (prefix string)
   (and (<= (length prefix) (length string))

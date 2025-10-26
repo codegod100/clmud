@@ -1,6 +1,119 @@
 (in-package :mud.server)
 
 
+(defvar *listener*)
+(defvar *listener-thread*)
+(defvar *clients*)
+(defvar *clients-lock*)
+(defvar *running*)
+
+
+(defparameter *state-file-path* nil)
+(defparameter *persistence-interval* 60)
+(defparameter *persistence-thread* nil)
+(defparameter *persistence-semaphore* nil)
+(defparameter *persistence-running* nil)
+(defparameter *persistence-lock* (make-mutex :name "persistence-lock"))
+
+(defun resolve-state-file-path ()
+  (let ((override (sb-ext:posix-getenv "MUD_STATE_FILE")))
+    (handler-case
+        (if (and override (> (length override) 0))
+            (pathname override)
+            (merge-pathnames #P"data/save-state.lisp" *default-pathname-defaults*))
+      (error (err)
+        (declare (ignore err))
+        (merge-pathnames #P"data/save-state.lisp" *default-pathname-defaults*)))))
+
+(defun state-file-path ()
+  (or *state-file-path*
+      (setf *state-file-path* (resolve-state-file-path))))
+
+(defun save-game-state (&key (reason :periodic))
+  (let ((path (state-file-path)))
+    (with-mutex (*persistence-lock*)
+      (handler-case
+          (let ((snapshots (collect-player-snapshots)))
+            (ensure-directories-exist path)
+            (with-open-file (out path :direction :output :if-exists :supersede
+                                  :if-does-not-exist :create)
+              (let ((*print-readably* t)
+                    (*print-escape* t)
+                    (*package* (find-package :cl)))
+                (format out ";; Saved at ~a (~(~a~))~%" (get-universal-time) reason)
+                (write snapshots :stream out :circle nil)
+                (terpri out)
+                (finish-output out)))
+            (let ((count (length snapshots)))
+              (when (not (eq reason :periodic))
+                (server-log "Saved ~d player~:p to ~a (~(~a~))" count path reason))
+              count))
+        (error (err)
+          (server-log "Failed to save game state (~(~a~)): ~a" reason err)
+          nil))))
+
+(eval-when (:load-toplevel)
+  (format t "Loading runtime persistence helpers...~%")
+  (finish-output))
+
+(defun load-game-state ()
+  (let* ((path (state-file-path))
+         (default-room (room-id (starting-room)))
+         (valid-room-p #'find-room))
+    (if (and path (probe-file path))
+        (handler-case
+            (with-open-file (in path :direction :input)
+              (let ((*read-eval* nil))
+                (let ((data (read in nil nil)))
+                  (if (listp data)
+                      (let ((restored (restore-player-snapshots data
+                                                               :default-room default-room
+                                                               :valid-room-p valid-room-p)))
+                        (when (> restored 0)
+                          (server-log "Loaded ~d player~:p from ~a" restored path))
+                        restored)
+                      0))))
+          (error (err)
+            (server-log "Failed to load game state from ~a: ~a" path err)
+            0))
+        0)))
+
+(defun ensure-persistence-semaphore ()
+  (unless *persistence-semaphore*
+    (setf *persistence-semaphore* (make-semaphore :count 0 :name "persistence-wakeup"))))
+
+(defun start-persistence-loop ()
+  (ensure-persistence-semaphore)
+  (unless *persistence-thread*
+    (setf *persistence-running* t)
+    (setf *persistence-thread*
+          (make-thread #'persistence-loop :name "mud-persistence"))))
+
+(defun stop-persistence-loop ()
+  (when *persistence-thread*
+    (setf *persistence-running* nil)
+    (when *persistence-semaphore*
+      (signal-semaphore *persistence-semaphore*))
+    (handler-case
+        (join-thread *persistence-thread*)
+      (error (err)
+        (server-log "Failed to join persistence thread: ~a" err)))
+    (setf *persistence-thread* nil))
+  (setf *persistence-running* nil)
+  (setf *persistence-semaphore* nil))
+
+(defun persistence-loop ()
+  (loop
+    (unless *persistence-running*
+      (return))
+    (let ((signaled (and *persistence-semaphore*
+                         (wait-on-semaphore *persistence-semaphore* :timeout *persistence-interval*))))
+      (unless *persistence-running*
+        (return))
+      (when (and *persistence-running* (not signaled))
+        (save-game-state :reason :periodic))))))
+
+
 (defun client-loop (socket stream)
   (let ((player nil) (graceful nil))
     (unwind-protect
@@ -72,7 +185,9 @@
   (initialize-merchants)
   (initialize-quests)
   (initialize-mobs)
+  (load-game-state)
   (setf *running* t)
+  (start-persistence-loop)
   (let ((socket (make-server-socket port)))
     (setf *listener* socket)
     (setf *listener-thread*
@@ -83,19 +198,24 @@
 
 
 (defun stop ()
-  (when *listener*
-    (setf *running* nil)
-    (ignore-errors (close *listener*))
-    (setf *listener* nil)
-    (when *listener-thread*
-      (join-thread *listener-thread*)
-      (setf *listener-thread* nil))
-    (with-mutex (*clients-lock*)
-     (dolist (client *clients*)
-       (ignore-errors (close (player-stream client)))
-       (ignore-errors (close (player-socket client))))
-     (setf *clients* 'nil))
-    (server-log "MUD server stopped.")))
+  (when (or *running* *listener* *listener-thread* *persistence-thread*)
+    (let ((was-running *running*))
+      (setf *running* nil)
+      (stop-persistence-loop)
+      (when *listener*
+        (ignore-errors (close *listener*))
+        (setf *listener* nil))
+      (when *listener-thread*
+        (join-thread *listener-thread*)
+        (setf *listener-thread* nil))
+      (with-mutex (*clients-lock*)
+       (dolist (client *clients*)
+         (ignore-errors (close (player-stream client)))
+         (ignore-errors (close (player-socket client)))
+         (detach-player client))
+       (setf *clients* 'nil))
+      (save-game-state :reason (if was-running :shutdown :manual))
+      (server-log "MUD server stopped."))))
 
 
 (defun await () (when *listener-thread* (join-thread *listener-thread*)))

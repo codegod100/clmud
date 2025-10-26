@@ -58,6 +58,8 @@
            :xp-to-next-level
            :equip-item
            :unequip-item
+           :collect-player-snapshots
+           :restore-player-snapshots
            :detach-player))
 
 (defpackage :mud.merchant
