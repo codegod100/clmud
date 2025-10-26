@@ -61,7 +61,8 @@
            :unequip-item
            :collect-player-snapshots
            :restore-player-snapshots
-           :detach-player))
+           :detach-player
+           :%serialize-player))
 
 (defpackage :mud.merchant
   (:use :cl)

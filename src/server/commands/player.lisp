@@ -11,20 +11,8 @@
                 (*print-escape* t)
                 (*package* (find-package :cl)))
             (format out ";; Saved at ~a (manual)~%" (get-universal-time))
-            (let ((player-data (list :name (player-name player)
-                                    :room (player-room player)
-                                    :health (player-health player)
-                                    :max-health (player-max-health player)
-                                    :mana (player-mana player)
-                                    :max-mana (player-max-mana player)
-                                    :level (player-level player)
-                                    :xp (player-xp player)
-                                    :gold (player-gold player)
-                                    :inventory nil
-                                    :equipped-weapon-index nil
-                                    :equipped-armor-index nil
-                                    :quest-state nil
-                                    :vehicle nil)))
+            ;; Use the proper serialization function to include inventory
+            (let ((player-data (mud.player:%serialize-player player)))
               (write (list player-data) :stream out :circle nil)
               (terpri out)
               (finish-output out)
