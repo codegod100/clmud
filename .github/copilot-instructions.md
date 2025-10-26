@@ -25,3 +25,7 @@
 - Editing Lisp directly is risky—prefer `tools/sexp-edit.lisp` for structural operations (`list`, `show`, `replace`) or `tools/lisp-safe-edit.py` for line edits that keep depth balanced.
 - Automated tests live in `tests/test-runner.lisp` and depend on Quicklisp + `fiveam`; run them with `sbcl --script tests/test-runner.lisp` after ensuring `~/quicklisp/setup.lisp` exists.
 - Detailed compile logs land in `/tmp/mud-compile-detail.log` via the tooling; call `scripts/dev.sh clean` to clear temp artifacts like `/tmp/mud-test.log` when needed.
+
+
+**Environment Setup**
+- if shell is fish, be sure to take that into account when issuing shell commands

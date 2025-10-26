@@ -365,21 +365,21 @@
               ;; For air vehicles, show sky rooms. For ground, show ground rooms.
               (let ((is-sky-room (and (symbolp dest-id)
                                       (search "SKY" (symbol-name dest-id)))))
-                ;; Only add room if:
-                ;; 1. Not already visited
-                ;; 2. Not up/down direction
-                ;; 3. Movement type matches vehicle (or no restriction)
-                ;; 4. Sky/ground level matches vehicle type
-                (unless (or (gethash dest-id visited)
-                           (member dir '(:up :down))
-                           ;; Check movement type compatibility
-                           (and has-movement-type movement-type vehicle-type
-                                (not (eq movement-type vehicle-type))
-                                (not (eq vehicle-type :air))  ; Air can go anywhere
-                                (not (eq vehicle-type :uber))) ; Uber can go anywhere
-                           ;; Skip sky rooms when on ground, skip ground rooms when in air
-                           (if (eq vehicle-type :air)
-                               (not is-sky-room)
+              ;; Only add room if:
+              ;; 1. Not already visited
+              ;; 2. Vertical moves allowed only for air vehicles
+              ;; 3. Movement type matches vehicle (or no restriction)
+              ;; 4. Ground traversal skips sky rooms unless in an air vehicle
+              (unless (or (gethash dest-id visited)
+                          (and (member dir '(:up :down))
+                               (not (eq vehicle-type :air)))
+                          ;; Check movement type compatibility
+                          (and has-movement-type movement-type vehicle-type
+                               (not (eq movement-type vehicle-type))
+                               (not (eq vehicle-type :air))  ; Air can go anywhere
+                               (not (eq vehicle-type :uber))) ; Uber can go anywhere
+                          ;; Skip sky rooms unless we are flying
+                          (and (not (eq vehicle-type :air))
                                is-sky-room))
                   (setf (gethash dest-id visited) t)
                   (setf (gethash dest-id coords) (list new-x new-y))
@@ -445,7 +445,19 @@
                   using (hash-value pos) do
                   (let ((x (* (- (first pos) min-x) 2))
                         (y (* (- (second pos) min-y) 2)))
-                    (setf (aref grid y x) room-id)))
+                    (let ((existing (aref grid y x)))
+                      (cond
+                        ((null existing)
+                         (setf (aref grid y x) (list room-id)))
+                        ((listp existing)
+                         (pushnew room-id existing :test #'eq)
+                         (setf (aref grid y x) existing))
+                        ((symbolp existing)
+                         (if (eq existing room-id)
+                             (setf (aref grid y x) (list room-id))
+                             (setf (aref grid y x) (list existing room-id))))
+                        (t
+                         (setf (aref grid y x) (list room-id)))))))
 
             ;; Draw connectors so navigation routes are visible.
             (loop for room-id being the hash-keys of coords
@@ -476,35 +488,52 @@
                                         ((:northwest :southeast) :conn-nw-se)
                                         (t :conn-unknown))))))))))
 
-            ;; Compute dynamic column widths so room names stay aligned.
-            (let ((col-widths (make-array width :initial-element 3)))
-              (loop for x from 0 below width do
-                (loop for y from 0 below height do
+            ;; Compute renderable strings per cell and track column widths.
+            (let ((col-widths (make-array width :initial-element 3))
+                  (cell-strings (make-array (list height width) :initial-element "")))
+              (loop for y from 0 below height do
+                (loop for x from 0 below width do
                   (let* ((cell (aref grid y x))
-                         (room (and (symbolp cell) (find-room cell))))
-                    (when room
-                      (let ((cell-width (+ (length (room-name room)) 3)))
-                        (setf (aref col-widths x)
-                              (max (aref col-widths x) cell-width)))))))
+                         (text (cond
+                                 ((eq cell :conn-horizontal) "---")
+                                 ((eq cell :conn-vertical) " | ")
+                                 ((eq cell :conn-ne-sw) " / ")
+                                 ((eq cell :conn-nw-se) " \ ")
+                                 ((listp cell)
+                                  (let* ((rooms (if (member current-room-id cell :test #'eq)
+                                                    (cons current-room-id
+                                                          (remove current-room-id cell :test #'eq))
+                                                    cell))
+                                         (labels (mapcar
+                                                  (lambda (rid)
+                                                    (let* ((room (find-room rid))
+                                                           (abbr (if room
+                                                                     (abbreviate-room-name rid)
+                                                                     (symbol-name rid)))
+                                                           (marker (if (eq rid current-room-id) "*" "")))
+                                                      (format nil "~a~a" abbr marker)))
+                                                  rooms)))
+                                    (format nil "[~{~a~^|~}]" labels)))
+                                 ((symbolp cell)
+                                  (let ((room (find-room cell)))
+                                    (if room
+                                        (format nil "[~a~a]"
+                                                (abbreviate-room-name cell)
+                                                (if (eq cell current-room-id) "*" ""))
+                                        "")))
+                                 (t ""))))
+                    (setf (aref cell-strings y x) text)
+                    (setf (aref col-widths x)
+                          (max (aref col-widths x) (max 3 (length text)))))))
 
               (let ((rendered
                      (with-output-to-string (s)
                        (format s "~%")
                        (loop for y from 0 below height do
                          (loop for x from 0 below width do
-                           (let* ((cell (aref grid y x))
-                                  (room (and (symbolp cell) (find-room cell)))
-                                  (text (cond
-                                          ((eq cell :conn-horizontal) "---")
-                                          ((eq cell :conn-vertical) " | ")
-                                          ((eq cell :conn-ne-sw) " / ")
-                                          ((eq cell :conn-nw-se) " \\ ")
-                                          (room
-                                           (format nil "[~a~a]"
-                                                   (room-name room)
-                                                   (if (eq cell current-room-id) "*" " ")))
-                                          (t ""))))
-                             (format s "~v<~a~>" (aref col-widths x) text)))
+                           (format s "~v<~a~>" (aref col-widths x)
+                                   (aref cell-strings y x)))
                          (format s "~%"))
                        (format s "~%* = Your location~%"))))
                 (return-from generate-map rendered)))))))))
+
