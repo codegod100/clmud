@@ -13,20 +13,40 @@
     (write-sequence content stream)))
 
 (defun analyze-parens (text)
-  "Return opens, closes, max depth, missing closing count, and positions of extra closes."
+  "Return opens, closes, max depth, missing closing count, and positions of extra closes.
+   Handles strings and comments properly."
   (let ((opens 0)
         (closes 0)
         (depth 0)
         (max-depth 0)
         (line 1)
         (column 0)
+        (in-string nil)
+        (in-comment nil)
+        (escape-next nil)
         (extra-closes '()))
     (loop for ch across text do
           (cond
+            ;; Handle escape sequences in strings
+            (escape-next
+             (setf escape-next nil))
+            
+            ;; Handle strings
+            ((and (char= ch #\") (not in-comment))
+             (setf in-string (not in-string)))
+            
+            ;; Handle line comments (only when not in string)
+            ((and (char= ch #\;) (not in-string) (not in-comment))
+             (setf in-comment t))
+            
+            ;; Handle newlines
             ((char= ch #\Newline)
+             (setf in-comment nil)
              (incf line)
              (setf column 0))
-            (t
+            
+            ;; Count parentheses only when not in string or comment
+            ((and (not in-string) (not in-comment))
              (incf column)
              (cond
                ((char= ch #\()
@@ -37,24 +57,51 @@
                 (incf closes)
                 (if (> depth 0)
                     (decf depth)
-                    (push (cons line column) extra-closes)))))))
+                    (push (cons line column) extra-closes)))))
+            
+            ;; Regular character
+            (t
+             (incf column))))
     (let ((missing (max 0 (- opens closes))))
       (values opens closes max-depth missing (nreverse extra-closes)))))
 
 (defun auto-fix-content (text)
-  "Remove unmatched closing parens and append missing closing parens."
+  "Remove unmatched closing parens and append missing closing parens.
+   Handles strings and comments properly."
   (let ((line 1)
         (column 0)
         (depth 0)
+        (in-string nil)
+        (in-comment nil)
+        (escape-next nil)
         (removed '())
         (out (make-string-output-stream)))
     (loop for ch across text do
           (cond
+            ;; Handle escape sequences in strings
+            (escape-next
+             (write-char ch out)
+             (setf escape-next nil))
+            
+            ;; Handle strings
+            ((and (char= ch #\") (not in-comment))
+             (write-char ch out)
+             (setf in-string (not in-string)))
+            
+            ;; Handle line comments (only when not in string)
+            ((and (char= ch #\;) (not in-string) (not in-comment))
+             (write-char ch out)
+             (setf in-comment t))
+            
+            ;; Handle newlines
             ((char= ch #\Newline)
              (write-char ch out)
+             (setf in-comment nil)
              (incf line)
              (setf column 0))
-            (t
+            
+            ;; Handle parentheses only when not in string or comment
+            ((and (not in-string) (not in-comment))
              (incf column)
              (cond
                ((char= ch #\()
@@ -67,7 +114,11 @@
                       (write-char ch out))
                     (push (cons line column) removed)))
                (t
-                (write-char ch out))))))
+                (write-char ch out))))
+            
+            ;; Regular character
+            (t
+             (write-char ch out))))
     (let ((missing depth))
       (loop repeat missing do (write-char #\) out))
       (values (get-output-stream-string out)

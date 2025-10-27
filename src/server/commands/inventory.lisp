@@ -178,11 +178,44 @@
       (write-crlf (player-stream player)
        (wrap "Use what? Usage: use <item>" :bright-red))
       (let ((item-name (string-trim '(#\  #\Tab) rest)))
-        (multiple-value-bind (success message)
+        (multiple-value-bind (success message action-type old-vehicle new-vehicle)
             (use-item player item-name)
           (if success
-              (write-crlf (player-stream player)
-               (wrap message :bright-green))
+              (progn
+                (write-crlf (player-stream player)
+                 (wrap message :bright-green))
+                ;; Handle vehicle announcements
+                (let ((item (or (mud.inventory::find-in-inventory player item-name)
+                                (mud.world:find-item-in-room (mud.player:player-room player) item-name))))
+                  (when (and item (eq (mud.inventory::item-type item) :vehicle))
+                    (case action-type
+                      (:enter
+                       ;; Player entered a vehicle
+                       (announce-to-room player
+                        (format nil "~a enters ~a."
+                                (wrap (mud.player:player-name player) :bright-blue)
+                                (mud.inventory::item-name new-vehicle))
+                        :include-self nil))
+                      (:exit
+                       ;; Player exited a vehicle
+                       (announce-to-room player
+                        (format nil "~a exits ~a."
+                                (wrap (mud.player:player-name player) :bright-blue)
+                                (mud.inventory::item-name old-vehicle))
+                        :include-self nil))
+                      (:transfer
+                       ;; Player transferred vehicles - announce both exit and entry
+                       (announce-to-room player
+                        (format nil "~a exits ~a."
+                                (wrap (mud.player:player-name player) :bright-blue)
+                                (mud.inventory::item-name old-vehicle))
+                        :include-self nil)
+                       (announce-to-room player
+                        (format nil "~a enters ~a."
+                                (wrap (mud.player:player-name player) :bright-blue)
+                                (mud.inventory::item-name new-vehicle))
+                        :include-self nil)))
+                    (send-room-overview player))))
               (write-crlf (player-stream player)
                (wrap message :bright-red)))))))
 

@@ -1,35 +1,6 @@
 (in-package :mud.server)
 
-(define-command (("enter") command-enter) (player rest)
-  (if (zerop (length rest))
-      (write-crlf (player-stream player)
-       (wrap "Enter what?" :bright-red))
-      (let* ((target-name (string-trim '(#\  #\Tab) rest))
-             (vehicle-item (find-item-in-room (player-room player) target-name)))
-        (cond
-          ((player-vehicle player)
-           (write-crlf (player-stream player)
-            (wrap
-             (format nil "You are already in ~a."
-                     (mud.inventory:item-name (player-vehicle player)))
-             :bright-red)))
-          ((or (null vehicle-item)
-               (not (eq (item-type vehicle-item) :vehicle)))
-           (write-crlf (player-stream player)
-            (wrap (format nil "You can't enter '~a'." target-name)
-             :bright-red)))
-          (t
-           (remove-item-from-room (player-room player) vehicle-item)
-           (setf (player-vehicle player) vehicle-item)
-           (write-crlf (player-stream player)
-            (wrap (format nil "You enter ~a." (mud.inventory:item-name vehicle-item))
-             :bright-cyan))
-           (announce-to-room player
-            (format nil "~a enters ~a."
-                    (wrap (player-name player) :bright-blue)
-                    (mud.inventory:item-name vehicle-item))
-            :include-self nil)
-           (send-room-overview player))))))
+;; Enter command removed - use 'use <vehicle>' instead
 
 (defun is-sky-room-p (room-id)
   "Check if a room is a sky room by looking for 'sky-over' in the name"

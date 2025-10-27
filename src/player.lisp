@@ -172,6 +172,16 @@
             0))
       0))
 
+(defun attempt-auto-repair (player)
+  "Attempt to auto-repair player's vehicle using repair kits from inventory. Returns (values success message)"
+  (when (and (player-vehicle player) (vehicle-broken-p player))
+    (let ((repair-kit (mud.inventory:find-in-inventory player "repair-kit")))
+      (when repair-kit
+        (multiple-value-bind (success message)
+            (mud.inventory:use-item player "repair-kit")
+          (when success
+            (values t (format nil "Auto-repair: ~a" message))))))))
+
 (defun damage-vehicle (player damage)
   "Apply damage to player's vehicle, return remaining damage if vehicle breaks"
   (if (player-vehicle player)
@@ -183,8 +193,14 @@
                   ;; Vehicle breaks
                   (progn
                     (setf (mud.world::vehicle-armor vehicle-template) 0)
+                    ;; Try to auto-repair only when vehicle is completely broken
+                    (multiple-value-bind (repair-success repair-message)
+                        (attempt-auto-repair player)
+                      (when repair-success
+                        ;; Note: Message will be handled by calling code
+                        nil))
                     (- damage current-armor)) ; Return excess damage
-                  ;; Vehicle absorbs damage
+                  ;; Vehicle absorbs damage - no auto-repair for partial damage
                   (progn
                     (setf (mud.world::vehicle-armor vehicle-template) (- current-armor damage))
                     0))) ; No excess damage

@@ -276,11 +276,18 @@
                        item-counts)))))))
 
 (defun use-item (player item-name)
-  "Use an item from player's inventory. Returns (values success message)"
-  (let ((item (find-in-inventory player item-name)))
+  "Use an item from player's inventory or room. Returns (values success message)"
+  (let ((item (or (find-in-inventory player item-name)
+                  (mud.world:find-item-in-room (mud.player:player-room player) item-name))))
     (cond
       ((null item)
-       (values nil (format nil "You don't have any ~a." item-name)))
+       (values nil (format nil "You don't have any ~a and there is no ~a here." item-name item-name)))
+
+      ;; Handle vehicles
+      ((eq (mud.inventory::item-type item) :vehicle)
+       (multiple-value-bind (success message action-type old-vehicle new-vehicle)
+           (use-vehicle player item)
+         (values success message action-type old-vehicle new-vehicle)))
 
       ((not (eq (mud.inventory::item-type item) :consumable))
        (values nil (format nil "You can't use ~a." item-name)))
@@ -328,6 +335,36 @@
 
          (t
           (values nil (format nil "~a has an unknown effect." item-name))))))))
+
+(defun use-vehicle (player vehicle-item)
+  "Use a vehicle - enter if not in vehicle, transfer if in different vehicle, exit if same vehicle. Returns (values success message action-type old-vehicle new-vehicle)"
+  (let ((current-vehicle (mud.player:player-vehicle player))
+        (current-room-id (mud.player:player-room player)))
+    (cond
+      ;; Player is already in a vehicle
+      (current-vehicle
+       (if (eq current-vehicle vehicle-item)
+           ;; Same vehicle - exit it
+           (progn
+             (mud.world:add-item-to-room current-room-id current-vehicle)
+             (setf (mud.player:player-vehicle player) nil)
+             (values t (format nil "You exit ~a." (mud.inventory::item-name current-vehicle)) :exit current-vehicle nil))
+           ;; Different vehicle - transfer
+           (progn
+             ;; Exit current vehicle
+             (mud.world:add-item-to-room current-room-id current-vehicle)
+             (setf (mud.player:player-vehicle player) nil)
+             ;; Enter new vehicle
+             (mud.world:remove-item-from-room current-room-id vehicle-item)
+             (setf (mud.player:player-vehicle player) vehicle-item)
+             (values t (format nil "Transferring vehicles... You enter ~a." (mud.inventory::item-name vehicle-item)) :transfer current-vehicle vehicle-item))))
+      
+      ;; Player is not in a vehicle - enter the vehicle
+      (t
+       (progn
+         (mud.world:remove-item-from-room current-room-id vehicle-item)
+         (setf (mud.player:player-vehicle player) vehicle-item)
+         (values t (format nil "You enter ~a." (mud.inventory::item-name vehicle-item)) :enter nil vehicle-item))))))
 
 (defun drop-item (player item-name)
   "Drop an item from inventory into the room. Returns (values success message)"

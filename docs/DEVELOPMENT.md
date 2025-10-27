@@ -49,6 +49,9 @@ All development tools are located in the `tools/` directory. Use the `dev.sh` sc
 # Check parenthesis balance
 ./dev.sh balance
 
+# Show running depth analysis for a specific file
+./dev.sh depth src/server/commands.lisp
+
 # List top-level forms in the command module
 ./dev.sh list src/server/commands.lisp
 
@@ -64,10 +67,9 @@ All development tools are located in the `tools/` directory. Use the `dev.sh` sc
 
 ### Tool Suite
 
-#### Parenthesis Tools (Python)
-- `tools/lisp-safe-edit.py` - Safe file editing with balance checking
-- `tools/check-paren-balance.py` - Show running depth analysis
-- `tools/find-unbalanced.py` - Find unbalanced forms
+#### Parenthesis Tools (Lisp)
+- `tools/check_parens.lisp` - Enhanced balance checking with string/comment awareness
+- `tools/paren-fix.lisp` - Automated parenthesis fixing with string/comment awareness
 
 #### S-Expression Tools (SBCL)
 - `tools/sexp-edit.lisp` - Manipulate complete s-expressions safely

@@ -34,6 +34,18 @@
            :vehicle-description
            :vehicle-max-armor))
 
+(defpackage :mud.server
+  (:use :cl)
+  (:export :handle-aggressive-mob-attack
+           :handle-mob-attack-player
+           :announce-to-room
+           :send-room-overview
+           :move-player
+           :current-room
+           :write-crlf
+           :get-vehicle-type-description
+           :get-required-vehicle-type))
+
 (defpackage :mud.player
   (:use :cl)
   (:export :make-player
@@ -65,6 +77,7 @@
            :get-vehicle-armor
            :damage-vehicle
            :vehicle-broken-p
+           :attempt-auto-repair
            :modify-health
            :modify-mana
            :modify-gold

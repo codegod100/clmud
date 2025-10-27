@@ -24,6 +24,7 @@ show_help() {
     echo "  validate      - Run full validation (balance + compile + server start)"
     echo "  check         - Quick compilation check (no server start)"
     echo "  balance       - Check parenthesis balance only"
+    echo "  depth <file>  - Show running depth analysis for a file"
     echo "  list <file>   - List top-level forms in a file"
     echo "  show <file> <index> - Show a specific form"
     echo "  clean         - Remove temporary files"
@@ -62,11 +63,11 @@ cmd_check() {
 cmd_balance() {
     echo -e "${BLUE}Checking parenthesis balance...${NC}"
     for file in src/*.lisp; do
-        if python3 tools/lisp-safe-edit.py "$file" > /dev/null 2>&1; then
+        if sbcl --script tools/check_parens.lisp check "$file" > /dev/null 2>&1; then
             echo -e "${GREEN}✓${NC} $file"
         else
             echo -e "${RED}✗${NC} $file"
-            python3 tools/lisp-safe-edit.py "$file" 2>&1 | grep "depth"
+            sbcl --script tools/check_parens.lisp check "$file" 2>&1 | grep -E "(UNBALANCED|Missing|Extra)"
         fi
     done
 }
@@ -78,6 +79,15 @@ cmd_list() {
         exit 1
     fi
     sbcl --script tools/sexp-edit.lisp list "$1" 2>&1 | grep -v "^;"
+}
+
+cmd_depth() {
+    if [ -z "$1" ]; then
+        echo -e "${RED}Error: file required${NC}"
+        echo "Usage: ./dev.sh depth <file>"
+        exit 1
+    fi
+    sbcl --script tools/check_parens.lisp depth "$1" 2>&1 | grep -v "^;"
 }
 
 cmd_show() {
@@ -164,6 +174,9 @@ case "${1:-help}" in
         ;;
     balance)
         cmd_balance
+        ;;
+    depth)
+        cmd_depth "$2"
         ;;
     list)
         cmd_list "$2"

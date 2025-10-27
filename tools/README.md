@@ -12,54 +12,30 @@ The server is fully functional despite the compilation warning. The warning indi
 
 ## Parenthesis Checking Tools
 
-### lisp-safe-edit.py
-Safe editing tool that validates parenthesis balance before making changes.
+### check_parens.lisp
+Enhanced parenthesis checker with detailed analysis and string/comment awareness.
 
 **Usage:**
 ```bash
-# Check if a file is balanced
-python3 tools/lisp-safe-edit.py src/server/commands.lisp
+# Check balance with detailed analysis
+sbcl --script tools/check_parens.lisp check src/server/commands.lisp
 
-# Replace lines (safely)
-python3 tools/lisp-safe-edit.py <file> <start-line> <end-line> <new-content>
+# Show running depth analysis
+sbcl --script tools/check_parens.lisp depth src/server/commands.lisp
+
+# Check all source files
+sbcl --script tools/check_parens.lisp all
 ```
 
-**Example:**
-```bash
-python3 tools/lisp-safe-edit.py src/server/commands.lisp 100 100 '       (write-crlf stream "test")))'
-```
-
-The tool will:
-- Check current file balance
-- Calculate balance change
-- Only apply the edit if the file remains balanced (depth 0)
-
-### check-paren-balance.py
-Shows running parenthesis depth through a file to identify where imbalances occur.
-
-**Usage:**
-```bash
-python3 tools/check-paren-balance.py src/server/commands.lisp
-```
-
-**Output:**
-```
-Line 723: depth 9 -> 4
-Line 1116: depth 6 -> 1
-...
-Final depth: 0
-```
-
-### find-unbalanced.py
-Finds top-level forms that don't properly close (should return to depth 1).
-
-**Usage:**
-```bash
-python3 tools/find-unbalanced.py src/server/commands.lisp
-```
+**Features:**
+- String and comment awareness (ignores parens in strings/comments)
+- Detailed line-by-line analysis
+- Running depth tracking
+- Reports exact locations of unmatched parentheses
+- Handles escape sequences in strings properly
 
 ### paren-fix.lisp
-SBCL script that both reports imbalance data and optionally rewrites files to balance raw parentheses. The fixer is purely lexical, so it looks only at literal `(` and `)` characters; it does not attempt to understand comments or reader macros.
+Enhanced SBCL script that reports imbalance data and optionally rewrites files to balance parentheses. Now includes string and comment awareness.
 
 **Usage:**
 ```bash
