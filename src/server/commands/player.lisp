@@ -100,6 +100,15 @@
         (write-crlf (player-stream player)
          (wrap (mud.quest::reset-quest player quest-id) :bright-cyan)))))
 
+(define-command (("auto-fight") command-auto-fight) (player rest)
+  "Toggle auto-fight mode on/off"
+  (declare (ignore rest))
+  (setf (mud.player::player-auto-fight player) (not (mud.player::player-auto-fight player)))
+  (write-crlf (player-stream player)
+   (wrap (format nil "Auto-fight is now ~a" 
+                 (if (mud.player::player-auto-fight player) "ON" "OFF"))
+         :bright-cyan)))
+
 (define-command (("help") command-help) (player rest)
   (declare (ignore rest))
   (write-crlf (player-stream player)
@@ -108,7 +117,7 @@
    "  Movement: look (l), map, go <dir> (n/s/e/w/u/d/ne/nw/se/sw), use <vehicle>, uber <location>")
   (write-crlf (player-stream player) "  Social: say <text> (local), chat <text> (global), talk <npc>, who")
   (write-crlf (player-stream player)
-   "  Combat: attack <mob>, cast <spell> <target>, stats, spells")
+   "  Combat: attack <mob>, cast <spell> <target>, stats, spells, auto-fight")
   (write-crlf (player-stream player)
    "  Equipment: equip <item>, unequip weapon/armor")
   (write-crlf (player-stream player)

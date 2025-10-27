@@ -357,7 +357,11 @@
       (setf (mob-last-attack-time mob) (get-universal-time))
       (if (mud.player::player-p target)
           ;; Attack player
-          (mud.server::handle-mob-attack-player mob target)
+          (progn
+            (mud.server::handle-mob-attack-player mob target)
+            ;; If player has auto-fight enabled, automatically counter-attack
+            (when (mud.player::player-auto-fight target)
+              (mud.server::auto-fight-counter-attack target mob)))
           ;; Attack other mob (not implemented yet)
           nil))))
 

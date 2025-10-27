@@ -31,7 +31,9 @@
    (gold :initarg :gold :accessor player-gold :initform 0)
    ;; Equipment slots
    (equipped-weapon :initarg :equipped-weapon :accessor player-equipped-weapon :initform nil)
-   (equipped-armor :initarg :equipped-armor :accessor player-equipped-armor :initform nil))
+   (equipped-armor :initarg :equipped-armor :accessor player-equipped-armor :initform nil)
+   ;; Auto-fight setting
+   (auto-fight :initarg :auto-fight :accessor player-auto-fight :initform nil))
   (:documentation "Represents a connected adventurer."))
 
 (defun make-player (&key name room stream socket)
@@ -44,7 +46,8 @@
                          :quest-state nil
                          :gold 100
                          :equipped-weapon nil
-                         :equipped-armor nil))
+                         :equipped-armor nil
+                         :auto-fight nil))
 
 (defparameter *player-registry* (make-hash-table :test #'equal))
 
@@ -397,7 +400,8 @@
           :equipped-weapon-index weapon-index
           :equipped-armor-index armor-index
           :quest-state (%quest-state->alist (player-quest-state player))
-          :vehicle (player-vehicle player))))
+          :vehicle (player-vehicle player)
+          :auto-fight (player-auto-fight player))))
 
 (defun %restore-player (data default-room valid-room-p)
   (let ((name (getf data :name)))
@@ -442,6 +446,8 @@
       (let ((quest (getf data :quest-state)))
         (setf (player-quest-state player) (%alist->quest-state quest)))
       (setf (player-vehicle player) (getf data :vehicle))
+      (let ((auto-fight (getf data :auto-fight)))
+        (setf (player-auto-fight player) auto-fight))
       player)))
 
 (defun collect-player-snapshots ()

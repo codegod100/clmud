@@ -758,6 +758,26 @@
       ;; Return true to indicate an attack occurred
       t)))
 
+(defun auto-fight-counter-attack (player mob)
+  "Automatically counter-attack a mob when player has auto-fight enabled"
+  (when (and (mud.player::player-alive-p player)
+             (mud.mob::mob-alive-p mob)
+             (eq (mud.player::player-room player) (mud.mob::mob-current-room mob)))
+    (let* ((player-damage (mud.player::get-player-damage player))
+           (mob-armor (mud.mob::mob-armor mob))
+           (actual-damage (max 1 (- player-damage mob-armor))))
+      (write-crlf (mud.player::player-stream player)
+       (wrap
+        (format nil "You automatically counter-attack ~a for ~d damage!"
+                (mud.mob::mob-name mob) actual-damage)
+        :bright-yellow))
+      (announce-to-room player
+       (format nil "~a automatically counter-attacks ~a!"
+               (wrap (mud.player::player-name player) :bright-yellow)
+               (mud.mob::mob-name mob))
+       :include-self nil)
+      (resolve-mob-hit player mob actual-damage))))
+
 (defun handle-aggressive-mob-attack (mob player)
   "Handle an aggressive mob attacking a player - start automatic combat"
   (let ((mob-name (mud.mob::mob-name mob))
@@ -775,7 +795,11 @@
      :include-self nil)
     
     ;; Do the initial attack
-    (handle-mob-attack-player mob player)))
+    (handle-mob-attack-player mob player)
+    
+    ;; If player has auto-fight enabled, automatically counter-attack
+    (when (mud.player::player-auto-fight player)
+      (auto-fight-counter-attack player mob))))
 
 (defun resolve-mob-hit (player mob damage)
   "Apply DAMAGE to MOB from PLAYER and handle death/xp/counter-attacks."
