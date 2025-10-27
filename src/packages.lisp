@@ -84,7 +84,11 @@
            :add-time-description
            :define-room-with-time
            :get-time-based-name
-           :add-time-name))
+           :add-time-name
+           :get-global-tick
+           :advance-global-tick
+           :get-tick-rate
+           :set-tick-rate))
 
 
 (defpackage :mud.player

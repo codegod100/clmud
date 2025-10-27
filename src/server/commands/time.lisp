@@ -4,8 +4,13 @@
   (let ((stream (player-stream player)))
     (if (zerop (length (string-trim *whitespace-chars* rest)))
         ;; No argument - show current time
-        (write-crlf stream
-         (wrap (format nil "Current time: ~a" (mud.world:format-world-time)) :bright-yellow))
+        (progn
+          (write-crlf stream
+           (wrap (format nil "Current time: ~a" (mud.world:format-world-time)) :bright-yellow))
+          (write-crlf stream
+           (wrap (format nil "Tick rate: ~d ticks/hour (~d seconds/tick)" 
+                         (mud.world:get-tick-rate)
+                         mud.constants::*tick-interval*) :bright-cyan)))
         ;; Argument provided - set time
         (let* ((time-str (string-trim *whitespace-chars* rest))
                (colon-pos (position #\: time-str)))

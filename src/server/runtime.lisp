@@ -148,6 +148,8 @@
       (return))
     (handler-case
         (progn
+          ;; Advance global tick and world time
+          (mud.world::advance-global-tick)
           ;; Process mob movements
           (let ((movements (mud.mob::process-all-mob-movements)))
             (when movements

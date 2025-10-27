@@ -51,6 +51,12 @@
 (defparameter *sunset-time* 18.0
   "Time of sunset in hours")
 
+;;; Global Tick System
+(defparameter *global-tick* 0
+  "Global tick counter - increments every game tick")
+(defparameter *tick-rate* 12
+  "Number of ticks per hour of game time")
+
 (defun get-world-time ()
   "Get current world time in hours"
   *world-time*)
@@ -62,6 +68,24 @@
 (defun advance-world-time (minutes)
   "Advance world time by specified minutes"
   (setf *world-time* (mod (+ *world-time* (/ minutes 60.0)) 24.0)))
+
+(defun get-global-tick ()
+  "Get current global tick number"
+  *global-tick*)
+
+(defun advance-global-tick ()
+  "Advance the global tick counter and update world time"
+  (incf *global-tick*)
+  ;; Advance world time based on tick rate (12 ticks = 1 hour)
+  (advance-world-time (/ 60.0 *tick-rate*)))
+
+(defun get-tick-rate ()
+  "Get the current tick rate (ticks per hour)"
+  *tick-rate*)
+
+(defun set-tick-rate (rate)
+  "Set the tick rate (ticks per hour)"
+  (setf *tick-rate* rate))
 
 (defun get-time-of-day ()
   "Get time of day as keyword (:dawn, :morning, :afternoon, :evening, :night)"
@@ -80,7 +104,7 @@
   (let* ((hours (floor *world-time*))
          (minutes (floor (* 60 (mod *world-time* 1.0))))
          (time-of-day (get-time-of-day)))
-    (format nil "~2,'0d:~2,'0d (~a)" hours minutes time-of-day)))
+    (format nil "~2,'0d:~2,'0d (~a) [Tick ~d]" hours minutes time-of-day *global-tick*)))
 
 (defun is-daytime-p ()
   "Check if it's currently daytime"
