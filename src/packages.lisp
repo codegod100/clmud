@@ -194,6 +194,10 @@
            :mob-alive-p
            :damage-mob
            :get-mob-loot
+           :add-item-to-mob-inventory
+           :remove-item-from-mob-inventory
+           :find-item-in-mob-inventory
+           :equip-item-to-mob
            :initialize-mobs
            :mob-name
            :mob-description
@@ -202,6 +206,7 @@
            :mob-damage
            :mob-armor
            :mob-xp-reward
+           :mob-inventory
            :mob-current-room
            :mob-last-move-time
            :mob-move-interval
@@ -220,6 +225,7 @@
   (:export :cast-spell
            :find-spell
            :create-corpse
+           :create-mob-corpse
            :loot-corpse
            :handle-player-death
            :get-player-stats

@@ -12,6 +12,7 @@
   armor           ; Armor rating (reduces incoming damage)
   xp-reward       ; XP given when killed
   loot-table      ; List of item names that can drop
+  inventory       ; List of items the mob is carrying/equipped
   aggressive      ; If T, mob attacks players on sight
   current-room    ; Current room ID where mob is located
   last-move-time  ; Universal time of last movement
@@ -47,6 +48,7 @@
                   :armor armor
                   :xp-reward xp-reward
                   :loot-table loot-table
+                  :inventory nil
                   :aggressive aggressive
                   :current-room nil
                   :last-move-time 0
@@ -82,6 +84,8 @@
         (setf (mob-combat-target mob-instance) nil)
         (setf (mob-last-attack-time mob-instance) 0)
         (setf (mob-attack-interval mob-instance) 3)
+        ;; Initialize inventory
+        (setf (mob-inventory mob-instance) nil)
         ;; Add to room
         (push mob-instance (gethash room-id *room-mobs*))
         mob-instance))))
@@ -121,6 +125,28 @@
     (remove nil (mapcar (lambda (item-name)
                           (mud.inventory::create-item item-name))
                         (mob-loot-table mob)))))
+
+(defun add-item-to-mob-inventory (mob item)
+  "Add an item to a mob's inventory"
+  (when (and mob item)
+    (push item (mob-inventory mob))))
+
+(defun remove-item-from-mob-inventory (mob item)
+  "Remove an item from a mob's inventory"
+  (when (and mob item)
+    (setf (mob-inventory mob)
+          (remove item (mob-inventory mob) :test #'eq))))
+
+(defun find-item-in-mob-inventory (mob item-name)
+  "Find an item in a mob's inventory by name"
+  (when mob
+    (find-if (lambda (item)
+               (string-equal (mud.inventory::item-name item) item-name))
+             (mob-inventory mob))))
+
+(defun equip-item-to-mob (mob item)
+  "Equip an item to a mob (add to inventory)"
+  (add-item-to-mob-inventory mob item))
 
 (defun initialize-mobs ()
   "Initialize mob templates and clear room mobs"

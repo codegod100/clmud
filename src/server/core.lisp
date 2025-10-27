@@ -827,14 +827,19 @@
               (format nil "Health: +10 (now ~d)  Mana: +5 (now ~d)"
                       (player-max-health player) (player-max-mana player))
               :bright-green)))))
+      ;; Add loot table items to mob's inventory before creating corpse
       (let ((loot (get-mob-loot mob)))
         (when loot
-          (dolist (item loot) (add-item-to-room (player-room player) item))
+          (dolist (item loot)
+            (mud.mob::add-item-to-mob-inventory mob item))))
+      
+      ;; Create corpse with mob's inventory (including loot table items)
+      (let ((corpse (mud.combat::create-mob-corpse mob)))
+        (when corpse
+          (mud.world::add-item-to-room (player-room player) corpse)
           (write-crlf (player-stream player)
-           (wrap
-            (format nil "~a dropped: ~{~a~^, ~}" (mob-name mob)
-                    (mapcar #'item-name loot))
-            :bright-yellow))))
+           (wrap (format nil "~a's corpse falls to the ground!" (mob-name mob))
+                 :bright-yellow))))
       ;; Apply faction disfavor if mob belonged to a faction
       (when (mud.mob::mob-faction mob)
         (let ((faction-id (mud.mob::mob-faction mob))

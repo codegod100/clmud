@@ -61,6 +61,20 @@
           (copy-list (mud.player:player-inventory player)))
     corpse-item))
 
+(defun create-mob-corpse (mob)
+  "Create a corpse from a dead mob with their inventory"
+  (let* ((corpse-name (format nil "corpse-of-~a" (string-downcase (mud.mob:mob-name mob))))
+         (corpse-item (mud.inventory::make-item
+                       :name corpse-name
+                       :type :corpse
+                       :effect :corpse-container
+                       :value 0
+                       :description (format nil "The lifeless body of ~a." (mud.mob:mob-name mob)))))
+    ;; Store corpse contents in the global hash table
+    (setf (gethash corpse-name *corpse-data*)
+          (copy-list (mud.mob:mob-inventory mob)))
+    corpse-item))
+
 (defun loot-corpse (corpse)
   "Extract items from a corpse. Returns the list of items."
   (when (and corpse (eq (mud.inventory::item-type corpse) :corpse))
