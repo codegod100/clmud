@@ -61,3 +61,4 @@
                         (when (not armor-correct) (format t "  - Armor should be leather-armor~%"))))))
               (format t "✗ Player 'V' not found in registry~%"))))
       (format t "✗ No players were restored~%")))
+
