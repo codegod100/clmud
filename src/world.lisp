@@ -41,6 +41,51 @@
   "Find a vehicle by name (case-insensitive)"
   (gethash (string-downcase name) *vehicles*))
 
+;;; Corpse System
+(defstruct corpse
+  mob-name        ; Name of the mob that died
+  items           ; List of items in the corpse
+  created-time    ; When the corpse was created
+  room-id)        ; Which room the corpse is in
+
+(defparameter *room-corpses* (make-hash-table :test #'eq)
+  "Hash table of room-id -> list of corpses in that room")
+
+(defun create-corpse (mob-name items room-id)
+  "Create a new corpse with the given items"
+  (make-corpse :mob-name mob-name
+               :items items
+               :created-time (get-universal-time)
+               :room-id room-id))
+
+(defun add-corpse-to-room (room-id corpse)
+  "Add a corpse to a room"
+  (push corpse (gethash room-id *room-corpses*)))
+
+(defun get-corpses-in-room (room-id)
+  "Get list of corpses in a room"
+  (gethash room-id *room-corpses*))
+
+(defun find-corpse-in-room (room-id corpse-name)
+  "Find a corpse in a room by name (case-insensitive, partial match)"
+  (let ((search-name (string-downcase corpse-name))
+        (corpses (get-corpses-in-room room-id)))
+    (find-if (lambda (corpse)
+               (search search-name (string-downcase (corpse-mob-name corpse))))
+             corpses)))
+
+(defun remove-corpse-from-room (room-id corpse)
+  "Remove a corpse from a room"
+  (let ((remaining-corpses (remove corpse (gethash room-id *room-corpses*) :test #'eq)))
+    (setf (gethash room-id *room-corpses*)
+          (if (listp remaining-corpses) remaining-corpses nil))))
+
+(defun loot-corpse (corpse)
+  "Get all items from a corpse and return them"
+  (let ((items (corpse-items corpse)))
+    (setf (corpse-items corpse) nil) ; Clear the corpse
+    items))
+
 ;;; World Time System
 (defparameter *world-time* 0.0
   "Current world time in hours (0.0 = sunrise, 12.0 = sunset)")

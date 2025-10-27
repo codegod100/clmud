@@ -109,6 +109,31 @@
                  (if (mud.player::player-auto-fight player) "ON" "OFF"))
          :bright-cyan)))
 
+(define-command (("auto-loot") command-auto-loot) (player rest)
+  "Toggle auto-loot mode on/off"
+  (declare (ignore rest))
+  (setf (mud.player::player-auto-loot player) (not (mud.player::player-auto-loot player)))
+  (write-crlf (player-stream player)
+   (wrap (format nil "Auto-loot is now ~a" 
+                 (if (mud.player::player-auto-loot player) "ON" "OFF"))
+         :bright-cyan)))
+
+(define-command (("settings") command-settings) (player rest)
+  "Show current player settings"
+  (declare (ignore rest))
+  (write-crlf (player-stream player)
+   (wrap "Current Settings:" :bright-yellow))
+  (write-crlf (player-stream player)
+   (format nil "  Auto-fight: ~a" 
+           (if (mud.player::player-auto-fight player) 
+               (wrap "ON" :bright-green) 
+               (wrap "OFF" :bright-red))))
+  (write-crlf (player-stream player)
+   (format nil "  Auto-loot: ~a" 
+           (if (mud.player::player-auto-loot player) 
+               (wrap "ON" :bright-green) 
+               (wrap "OFF" :bright-red)))))
+
 (define-command (("help") command-help) (player rest)
   (declare (ignore rest))
   (write-crlf (player-stream player)
@@ -121,7 +146,9 @@
   (write-crlf (player-stream player)
    "  Equipment: equip <item>, unequip weapon/armor")
   (write-crlf (player-stream player)
-   "  Inventory: inventory (inv/i), use <item> (including vehicles), drop <item>, get <item> (loot corpses)")
+   "  Inventory: inventory (inv/i), use <item> (including vehicles), drop <item>, get <item>, examine <item>, loot <corpse> [item]")
+  (write-crlf (player-stream player)
+   "  Settings: settings, auto-fight, auto-loot")
   (write-crlf (player-stream player)
    "  Vehicle: use <vehicle> (enter/exit), repair (fix broken vehicle with repair kit)")
   (write-crlf (player-stream player)

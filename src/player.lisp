@@ -35,7 +35,9 @@
    (equipped-weapon :initarg :equipped-weapon :accessor player-equipped-weapon :initform nil)
    (equipped-armor :initarg :equipped-armor :accessor player-equipped-armor :initform nil)
    ;; Auto-fight setting
-   (auto-fight :initarg :auto-fight :accessor player-auto-fight :initform nil))
+   (auto-fight :initarg :auto-fight :accessor player-auto-fight :initform nil)
+   ;; Auto-loot setting
+   (auto-loot :initarg :auto-loot :accessor player-auto-loot :initform nil))
   (:documentation "Represents a connected adventurer."))
 
 (defun make-player (&key name room stream socket)
@@ -49,7 +51,8 @@
                          :gold 100
                          :equipped-weapon nil
                          :equipped-armor nil
-                         :auto-fight nil))
+                         :auto-fight nil
+                         :auto-loot nil))
 
 (defparameter *player-registry* (make-hash-table :test #'equal))
 
