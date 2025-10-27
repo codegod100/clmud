@@ -1,14 +1,12 @@
 # MUD Development Tools
 
-This directory contains utilities for working with the Common Lisp MUD codebase.
+This directory contains consolidated utilities for working with the Common Lisp MUD codebase.
 
 ## Current Status
 
 ✅ **All source files have balanced parentheses**
 ✅ **Server compiles and runs successfully**
-⚠️  **1 non-fatal compilation warning exists** (illegal function call in handle-command)
-
-The server is fully functional despite the compilation warning. The warning indicates a structural issue in the `handle-command` function where SBCL detects code that may be unreachable or improperly structured, but it doesn't prevent compilation or execution.
+✅ **Tools have been consolidated and optimized**
 
 ## ⚠️ IMPORTANT: Fast Development Workflow
 
@@ -20,7 +18,7 @@ The server is fully functional despite the compilation warning. The warning indi
 ./dev.sh balance
 
 # 2. Auto-fix parentheses (FAST - ~1 second)
-sbcl --script tools/paren-fix.lisp fix <file> --in-place
+sbcl --script tools/paren-tools.lisp fix <file> --in-place
 
 # 3. Check compilation (FAST - ~2 seconds)
 ./dev.sh check
@@ -54,7 +52,7 @@ sbcl --script mud.lisp  # WRONG! Server not needed for balance check
 ```
 
 ```bash
-sbcl --script tools/paren-fix.lisp fix file.lisp --in-place
+sbcl --script tools/paren-tools.lisp fix file.lisp --in-place
 sbcl --script mud.lisp  # WRONG! Server not needed after fixing parentheses
 ```
 
@@ -73,7 +71,7 @@ sbcl --script mud.lisp  # WRONG! Server not needed after fixing parentheses
 **When AI should NOT run the server:**
 - After `./dev.sh check` (compilation verification)
 - After `./dev.sh balance` (parenthesis checking)  
-- After `paren-fix.lisp` (parenthesis fixing)
+- After `paren-tools.lisp` (parenthesis fixing)
 - For syntax validation
 - For code structure verification
 
@@ -86,27 +84,33 @@ sbcl --script mud.lisp  # WRONG! Server not needed after fixing parentheses
 ./dev.sh start
 ```
 
-**Never manually edit parentheses** - this can introduce errors and is time-consuming. The paren-fix tool handles string/comment awareness and ensures correct balancing.
+**Never manually edit parentheses** - this can introduce errors and is time-consuming. The paren-tools handles string/comment awareness and ensures correct balancing.
 
 **Never run `mud.lisp` or `sbcl --script mud.lisp` for debugging** - it's too slow! Use the fast debugging tools instead.
 
 **Never run the full server during development** - use the fast debugging tools instead for quick feedback.
 
-## Parenthesis Checking Tools
+## Consolidated Tools
 
-### check_parens.lisp
-Enhanced parenthesis checker with detailed analysis and string/comment awareness.
+### paren-tools.lisp ⭐ **PRIMARY PARENTHESIS TOOL**
+Comprehensive parenthesis checking and fixing tool with string and comment awareness.
 
 **Usage:**
 ```bash
 # Check balance with detailed analysis
-sbcl --script tools/check_parens.lisp check src/server/commands.lisp
+sbcl --script tools/paren-tools.lisp check src/server/commands.lisp
 
 # Show running depth analysis
-sbcl --script tools/check_parens.lisp depth src/server/commands.lisp
+sbcl --script tools/paren-tools.lisp depth src/server/commands.lisp
+
+# Fix parentheses in place (RECOMMENDED)
+sbcl --script tools/paren-tools.lisp fix src/server/commands.lisp --in-place
+
+# Fix to new file
+sbcl --script tools/paren-tools.lisp fix src/server/commands.lisp /tmp/fixed.lisp
 
 # Check all source files
-sbcl --script tools/check_parens.lisp all
+sbcl --script tools/paren-tools.lisp all
 ```
 
 **Features:**
@@ -115,40 +119,43 @@ sbcl --script tools/check_parens.lisp all
 - Running depth tracking
 - Reports exact locations of unmatched parentheses
 - Handles escape sequences in strings properly
+- Auto-fix with detailed reporting
 
-### paren-fix.lisp ⭐ **PRIMARY TOOL**
-Enhanced SBCL script that reports imbalance data and optionally rewrites files to balance parentheses. Now includes string and comment awareness.
-
-**This is the RECOMMENDED tool for fixing parenthesis issues - use this instead of manual editing.**
+### compile-tools.lisp ⭐ **PRIMARY COMPILATION TOOL**
+Comprehensive compilation checking and validation tool.
 
 **Usage:**
 ```bash
-# Inspect a file
-sbcl --script tools/paren-fix.lisp check src/server/commands.lisp
+# Check compilation of all source files
+sbcl --script tools/compile-tools.lisp check
 
-# Write a balanced copy
-sbcl --script tools/paren-fix.lisp fix src/server/commands.lisp /tmp/server-fixed.lisp
+# Check server function loading
+sbcl --script tools/compile-tools.lisp functions
 
-# Balance in place (RECOMMENDED - overwrites!)
-sbcl --script tools/paren-fix.lisp fix src/server/commands.lisp --in-place
+# Run comprehensive validation
+sbcl --script tools/compile-tools.lisp validate
 ```
 
-**Output:**
-```
-File: src/server/commands.lisp
-  Opens:   15823
-  Closes:  15820
-  Status: UNBALANCED (diff 3)
-  Missing closing parens: 3
-  Extra closing parens at:
-    line 142, column 7
+**Features:**
+- Loads all source files in correct order
+- Reports compilation errors and warnings
+- Validates server function definitions
+- Comprehensive validation combining all checks
+
+### validate.sh ⭐ **PRIMARY VALIDATION SCRIPT**
+Comprehensive validation script that checks balance and compilation.
+
+**Usage:**
+```bash
+# Run full validation
+./tools/validate.sh
 ```
 
-**Auto-fix details:**
-- Removes unmatched closing parens (keeps a log of line/column locations).
-- Appends the minimum number of closing parens to reach depth zero.
-- Leaves already-balanced files untouched.
-- Works best on structural code edits; if literal parens appear inside strings, double-check the result.
+**Features:**
+- Checks parenthesis balance for all source files
+- Validates compilation using compile-tools.lisp
+- Color-coded output for easy reading
+- Detailed error reporting and debugging suggestions
 
 ## S-Expression Editing Tools
 
@@ -198,115 +205,13 @@ sbcl --script tools/sexp-edit.lisp replace src/server/commands.lisp 10 \
 - Pretty-prints output with proper indentation
 - Prevents accidental syntax errors
 
-### check-handle-command.lisp
-SBCL script to validate the `handle-command` function and count missing parens.
-
-**Usage:**
-```bash
-sbcl --script tools/check-handle-command.lisp
-```
-
-**Output:**
-```
-END-OF-FILE while reading handle-command
-At EOF: depth=1 (needs 1 more closing parens)
-Max depth reached: 22
-```
-
-### check_parens.lisp
-Comprehensive parenthesis checker that validates multiple source files and attempts to read all forms.
-
-**Usage:**
-```bash
-sbcl --script tools/check_parens.lisp
-```
-
-**Features:**
-- Checks parenthesis balance in multiple source files
-- Attempts to read all top-level forms from each file
-- Reports detailed statistics and error locations
-- Validates structural integrity of Lisp files
-
-### fix-parens.lisp
-Automated parenthesis fixing tool that adds missing opening parentheses to Common Lisp forms.
-
-**Usage:**
-```bash
-sbcl --script tools/fix-parens.lisp
-```
-
-**Features:**
-- Automatically detects forms that need opening parentheses
-- Handles common Lisp constructs (defun, let, loop, etc.)
-- Preserves existing structure and formatting
-- Creates fixed output file for review
-
-### fix-handle-look-at.lisp
-Specialized tool for fixing the `handle-look-at` function by reading and rewriting it properly.
-
-**Usage:**
-```bash
-sbcl --script tools/fix-handle-look-at.lisp
-```
-
-**Features:**
-- Reads and validates the handle-look-at function
-- Reformats the function with proper pretty-printing
-- Maintains structural integrity during rewriting
-- Provides detailed feedback on function structure
-
-### check-server.lisp
-Server inspection tool that loads and examines server source files for function definitions.
-
-**Usage:**
-```bash
-sbcl --script tools/check-server.lisp
-```
-
-**Features:**
-- Loads server packages and core files
-- Inspects function definitions in server modules
-- Reports successful form reading statistics
-- Validates server code structure
-
-### compile_server.lisp
-Simple compilation utility for server source files.
-
-**Usage:**
-```bash
-sbcl --script tools/compile_server.lisp
-```
-
-**Features:**
-- Compiles core server files in proper order
-- Handles package loading and dependencies
-- Provides compilation feedback
-
-## Validation Scripts
-
-### validate.sh
-Comprehensive validation that checks balance and compilation.
-
-**Usage:**
-```bash
-./tools/validate.sh
-```
-
-### check-compile.sh
-Detailed compilation checker with error reporting.
-
-**Usage:**
-```bash
-./tools/check-compile.sh
-```
-
 ## Quick Validation Commands
 
 **Check all source files:**
 ```bash
 for f in src/*.lisp; do 
     echo "=== $f ===" 
-    python3 tools/lisp-safe-edit.py "$f"
+    sbcl --script tools/paren-tools.lisp check "$f"
 done
 ```
 
@@ -331,9 +236,7 @@ timeout 5 sbcl --script mud.lisp 2>&1 | grep -c "illegal function call"
 
 1. **Always check balance before manual edits:**
    ```bash
-   python3 tools/lisp-safe-edit.py src/server/commands.lisp
-   # OR
-   sbcl --script tools/sexp-edit.lisp check src/server/commands.lisp
+   sbcl --script tools/paren-tools.lisp check src/server/commands.lisp
    ```
 
 2. **Prefer s-expression level editing:**
@@ -342,9 +245,9 @@ timeout 5 sbcl --script mud.lisp 2>&1 | grep -c "illegal function call"
    - Automatically formats output
 
 3. **After any edit, verify:**
-   - Balance: `python3 tools/lisp-safe-edit.py <file>`
+   - Balance: `sbcl --script tools/paren-tools.lisp check <file>`
    - S-expressions: `sbcl --script tools/sexp-edit.lisp check <file>`
-   - Compilation: `./tools/check-compile.sh`
+   - Compilation: `sbcl --script tools/compile-tools.lisp check`
    - Full validation: `./tools/validate.sh`
 
 4. **Keep tools in this directory** - don't scatter one-off scripts in the project root
@@ -362,17 +265,42 @@ This usually means a `cond` clause is not properly closed, causing subsequent cl
 **Fix:** Find the clause mentioned in the error and count its closing parens carefully.
 
 ### "end of file" error
-Missing closing parentheses somewhere. Use `check-paren-balance.py` to find where depth doesn't return to 0.
+Missing closing parentheses somewhere. Use `paren-tools.lisp` to find where depth doesn't return to 0.
 
 ### Extra closing parens
-File balance will be negative. Use `python3 tools/lisp-safe-edit.py` to see the depth.
+File balance will be negative. Use `sbcl --script tools/paren-tools.lisp check` to see the depth.
 
 ## Tool Organization
 
 All development tools are kept in this `tools/` directory to avoid cluttering the project root:
-- Python scripts for paren balance checking
-- SBCL scripts for s-expression manipulation  
-- Shell scripts for validation and compilation checks
+- **paren-tools.lisp** - Comprehensive parenthesis checking and fixing
+- **compile-tools.lisp** - Compilation checking and validation
+- **sexp-edit.lisp** - S-expression manipulation
+- **validate.sh** - Complete validation script
 - Documentation (this README)
 
-Do not create ad-hoc scripts in the project root - add them here instead.
+## Refactoring Summary
+
+The tools directory has been significantly refactored to eliminate redundancy:
+
+**Removed (10 redundant tools):**
+- `check_parens.lisp` (duplicate)
+- `check_parens_new.lisp` (duplicate)
+- `fix-parens.lisp` (superseded)
+- `sbcl-simple-fix.lisp` (superseded)
+- `sbcl-advanced-fix.lisp` (superseded)
+- `sbcl-fix-parens.lisp` (superseded)
+- `smart-fix-parens.lisp` (superseded)
+- `check-compile.sh` (superseded)
+- `compile_server.lisp` (superseded)
+- `check-server.lisp` (superseded)
+- `check-handle-command.lisp` (specialized, not needed)
+- `fix-handle-look-at.lisp` (specialized, not needed)
+
+**Consolidated into (4 comprehensive tools):**
+- `paren-tools.lisp` - All parenthesis operations
+- `compile-tools.lisp` - All compilation operations
+- `sexp-edit.lisp` - S-expression manipulation (kept as-is)
+- `validate.sh` - Complete validation (updated)
+
+This reduces the tools directory from 16 files to 6 files while maintaining all functionality and improving usability.

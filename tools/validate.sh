@@ -1,6 +1,6 @@
 #!/bin/bash
-# MUD Server Validation Script
-# Checks parenthesis balance and compilation for all Lisp source files
+# Comprehensive MUD Server Validation Script
+# Consolidates all validation functionality
 
 set -e
 
@@ -9,7 +9,7 @@ PROJECT_DIR="$(dirname "$TOOLS_DIR")"
 
 cd "$PROJECT_DIR"
 
-echo "=== MUD Server Validation ==="
+echo "=== CLMUD Comprehensive Validation ==="
 echo
 
 # Color codes
@@ -20,15 +20,15 @@ NC='\033[0m' # No Color
 
 ERRORS=0
 
-# Function to check paren balance
+# Function to check paren balance using the consolidated tool
 check_balance() {
     local file=$1
-    if python3 "$TOOLS_DIR/lisp-safe-edit.py" "$file" > /dev/null 2>&1; then
+    if sbcl --script "$TOOLS_DIR/paren-tools.lisp" check "$file" > /dev/null 2>&1; then
         echo -e "${GREEN}✓${NC} $file is balanced"
         return 0
     else
         echo -e "${RED}✗${NC} $file has unbalanced parens"
-        python3 "$TOOLS_DIR/lisp-safe-edit.py" "$file" 2>&1 | grep "depth"
+        sbcl --script "$TOOLS_DIR/paren-tools.lisp" check "$file" 2>&1 | grep -E "(Status:|Missing|Extra)"
         return 1
     fi
 }
@@ -44,35 +44,19 @@ for file in src/*.lisp; do
 done
 echo
 
-# Try to load and compile
-echo "--- Checking SBCL Compilation ---"
-if timeout 10 sbcl --noinform --non-interactive --load mud.lisp > /tmp/mud-compile.log 2>&1; then
-    echo -e "${GREEN}✓${NC} Server loads successfully"
+# Check compilation using consolidated tool
+echo "--- Checking Compilation ---"
+if sbcl --script "$TOOLS_DIR/compile-tools.lisp" validate > /tmp/mud-validation.log 2>&1; then
+    echo -e "${GREEN}✓${NC} All validation checks passed"
 else
     EXIT_CODE=$?
-    if [ $EXIT_CODE -eq 124 ]; then
-        echo -e "${GREEN}✓${NC} Server loaded and started (timeout reached)"
-        # Check for compilation errors even on timeout
-        ERROR_COUNT=$(grep "caught ERROR" /tmp/mud-compile.log 2>/dev/null | wc -l)
-        if [ "$ERROR_COUNT" -gt 0 ]; then
-            echo -e "${YELLOW}Note: $ERROR_COUNT compilation warning(s) present (non-fatal)${NC}"
-        fi
-    else
-        echo -e "${RED}✗${NC} Server failed to load"
-        ERRORS=$((ERRORS + 1))
-
-        # Show errors
-        ERROR_COUNT=$(grep -c "caught ERROR" /tmp/mud-compile.log 2>/dev/null || echo 0)
-        if [ "$ERROR_COUNT" -gt 0 ]; then
-            echo -e "${YELLOW}Found $ERROR_COUNT compilation errors:${NC}"
-            grep -A 2 "caught ERROR" /tmp/mud-compile.log | head -20
-        fi
-
-        # Show warnings
-        WARNING_COUNT=$(grep "caught WARNING" /tmp/mud-compile.log 2>/dev/null | wc -l)
-        if [ "$WARNING_COUNT" -gt 0 ]; then
-            echo -e "${YELLOW}Found $WARNING_COUNT warnings${NC}"
-        fi
+    echo -e "${RED}✗${NC} Validation failed (exit code: $EXIT_CODE)"
+    ERRORS=$((ERRORS + 1))
+    
+    # Show errors from log
+    if [ -f "/tmp/mud-validation.log" ]; then
+        echo -e "${YELLOW}Validation details:${NC}"
+        cat /tmp/mud-validation.log
     fi
 fi
 echo
@@ -81,13 +65,16 @@ echo
 echo "--- Validation Summary ---"
 if [ $ERRORS -eq 0 ]; then
     echo -e "${GREEN}All checks passed!${NC}"
+    echo
+    echo "The server is ready for development and testing."
     exit 0
 else
     echo -e "${RED}Found $ERRORS error(s)${NC}"
     echo
     echo "To debug:"
-    echo "  - Check balance: python3 tools/lisp-safe-edit.py <file>"
-    echo "  - Find issues: python3 tools/check-paren-balance.py <file>"
-    echo "  - View compile log: less /tmp/mud-compile.log"
+    echo "  - Check balance: sbcl --script tools/paren-tools.lisp check <file>"
+    echo "  - Fix balance:   sbcl --script tools/paren-tools.lisp fix <file> --in-place"
+    echo "  - Check compile: sbcl --script tools/compile-tools.lisp check"
+    echo "  - View log:      less /tmp/mud-validation.log"
     exit 1
 fi
