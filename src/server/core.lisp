@@ -585,15 +585,22 @@
 ;; Helper function to handle movement blocked
 (defun handle-movement-blocked (player room direction)
   (let ((stream (player-stream player))
+        (exit-entry (assoc direction (room-exits room)))
         (required-vehicle-type (get-required-vehicle-type room direction)))
     (cond
+      ;; No exit exists in this direction
+      ((null exit-entry)
+       (write-crlf stream (wrap "You can't go that way." :bright-red)))
+      ;; Exit exists but no specific vehicle type required
       ((null required-vehicle-type)
-       ;; If no specific vehicle type required, check if player is in a vehicle
+       ;; Check if player is in a vehicle
        (if (player-vehicle player)
            (write-crlf stream (wrap "You need to exit your vehicle to go that way." :bright-red))
            (write-crlf stream (wrap "You can't go that way." :bright-red))))
+      ;; Exit requires pedestrian (player must exit vehicle)
       ((eq required-vehicle-type :pedestrian)
        (write-crlf stream (wrap "You need to exit your vehicle to go that way." :bright-red)))
+      ;; Exit requires specific vehicle type
       (t
        (let ((vehicle-desc (get-vehicle-type-description required-vehicle-type)))
          (write-crlf stream (wrap (format nil "You need a ~a to go that way." vehicle-desc) :bright-red)))))

@@ -185,7 +185,7 @@
                   (progn
                     (setf failed-at i)
                     (write-crlf stream (wrap message :bright-red))
-                    (return))))
+                    (return)))))
           
           ;; Show summary
           (cond
@@ -270,4 +270,3 @@
                         (wrap (merchant-name merchant) :bright-blue))
                 :include-self nil)))))))))
 
-)

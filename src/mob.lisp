@@ -164,7 +164,7 @@
                        18    ; damage
                        8     ; armor
                        125   ; xp-reward
-                       '("steel-sword" "leather-armor" "gold-coins" "motorcycle")
+                       '("steel-sword" "leather-armor" "gold-coins")
                        :aggressive nil
                        :vehicle "motorcycle")
 

@@ -25,8 +25,57 @@ sbcl --script tools/paren-fix.lisp fix <file> --in-place
 # 3. Check compilation (FAST - ~2 seconds)
 ./dev.sh check
 
-# 4. Repeat as needed
+# 4. DONE! No server needed for compilation checking.
 ```
+
+### 🤖 AI Agent Instructions
+
+**⚠️ CRITICAL FOR AI AGENTS: After running `./dev.sh check` - DO NOT run `sbcl --script mud.lisp`!**
+
+**Common AI mistake pattern:**
+1. Run `./dev.sh check` ✅
+2. See "compilation successful" ✅  
+3. **INCORRECTLY** run `sbcl --script mud.lisp` ❌
+
+**Correct AI workflow:**
+1. Run `./dev.sh check` ✅
+2. See "compilation successful" ✅
+3. **STOP** - compilation check is complete ✅
+
+**❌ AI AGENTS - DON'T do this:**
+```bash
+./dev.sh check
+sbcl --script mud.lisp  # WRONG! Server not needed for compilation check
+```
+
+```bash
+./dev.sh balance
+sbcl --script mud.lisp  # WRONG! Server not needed for balance check
+```
+
+```bash
+sbcl --script tools/paren-fix.lisp fix file.lisp --in-place
+sbcl --script mud.lisp  # WRONG! Server not needed after fixing parentheses
+```
+
+**✅ AI AGENTS - DO this instead:**
+```bash
+./dev.sh balance
+./dev.sh check
+# DONE! No server needed for development debugging.
+```
+
+**When AI should run the server:**
+- Only when user explicitly asks to test gameplay
+- Only when user says "test the server" or "start the game"
+- Only for final integration testing after major changes
+
+**When AI should NOT run the server:**
+- After `./dev.sh check` (compilation verification)
+- After `./dev.sh balance` (parenthesis checking)  
+- After `paren-fix.lisp` (parenthesis fixing)
+- For syntax validation
+- For code structure verification
 
 ### Only When Testing Gameplay (SLOW)
 ```bash
@@ -38,6 +87,8 @@ sbcl --script tools/paren-fix.lisp fix <file> --in-place
 ```
 
 **Never manually edit parentheses** - this can introduce errors and is time-consuming. The paren-fix tool handles string/comment awareness and ensures correct balancing.
+
+**Never run `mud.lisp` or `sbcl --script mud.lisp` for debugging** - it's too slow! Use the fast debugging tools instead.
 
 **Never run the full server during development** - use the fast debugging tools instead for quick feedback.
 

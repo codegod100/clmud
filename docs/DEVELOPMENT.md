@@ -188,6 +188,7 @@ The `handle-command` function in `src/server/commands.lisp` is the main command 
 
 **DON'T:**
 - Manually edit parentheses - ALWAYS use `tools/paren-fix.lisp`
+- Run `mud.lisp` or `sbcl --script mud.lisp` for debugging (it's too slow!)
 - Run the full server during development (use `./dev.sh check` instead)
 - Create one-off scripts in project root
 - Ignore compilation warnings
@@ -195,6 +196,8 @@ The `handle-command` function in `src/server/commands.lisp` is the main command 
 - Use `./dev.sh validate` for every edit (it's slow)
 
 ### Fast Debugging Tools
+
+**⚠️ NEVER run `mud.lisp` for debugging - it's too slow!**
 
 **Use these tools during development for quick feedback:**
 
@@ -223,6 +226,76 @@ sbcl --script tools/check_parens.lisp depth src/server/core.lisp
 # Start server for gameplay testing (SLOW)
 ./dev.sh start
 ```
+
+### Debugging Workflow
+
+**For code changes and fixes:**
+1. Edit your code
+2. Run `./dev.sh balance` (check parentheses)
+3. Run `./dev.sh check` (check compilation)
+4. If issues found, fix them and repeat
+5. **DONE** - no need to start the server!
+
+**Only start the server when:**
+- Testing actual gameplay features
+- Verifying player interactions work
+- Testing network connectivity
+- Final integration testing
+
+**Never start the server for:**
+- Syntax checking
+- Compilation verification
+- Parenthesis balancing
+- Code structure validation
+
+### 🤖 AI Agent Instructions
+
+**⚠️ CRITICAL FOR AI AGENTS: After running `./dev.sh check` - DO NOT run `sbcl --script mud.lisp`!**
+
+**Common AI mistake pattern:**
+1. Run `./dev.sh check` ✅
+2. See "compilation successful" ✅  
+3. **INCORRECTLY** run `sbcl --script mud.lisp` ❌
+
+**Correct AI workflow:**
+1. Run `./dev.sh check` ✅
+2. See "compilation successful" ✅
+3. **STOP** - compilation check is complete ✅
+
+**❌ AI AGENTS - DON'T do this:**
+```bash
+./dev.sh check
+sbcl --script mud.lisp  # WRONG! Server not needed for compilation check
+```
+
+```bash
+./dev.sh balance
+sbcl --script mud.lisp  # WRONG! Server not needed for balance check
+```
+
+```bash
+sbcl --script tools/paren-fix.lisp fix file.lisp --in-place
+sbcl --script mud.lisp  # WRONG! Server not needed after fixing parentheses
+```
+
+**✅ AI AGENTS - DO this instead:**
+```bash
+./dev.sh balance
+./dev.sh check
+# DONE! No server needed for development debugging.
+```
+
+**When AI should run the server:**
+- Only when user explicitly asks to test gameplay
+- Only when user says "test the server" or "start the game"
+- Only for final integration testing after major changes
+
+**When AI should NOT run the server:**
+- After `./dev.sh check` (compilation verification)
+- After `./dev.sh balance` (parenthesis checking)  
+- After `paren-fix.lisp` (parenthesis fixing)
+- For syntax validation
+- For code structure verification
 
 ### Working with S-Expressions
 
