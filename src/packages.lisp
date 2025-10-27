@@ -93,7 +93,12 @@
            :restore-player-snapshots
            :detach-player
            :show-simple-status
-           :%serialize-player))
+           :%serialize-player
+           :get-faction-standing
+           :set-faction-standing
+           :modify-faction-standing
+           :get-faction-reputation
+           :list-faction-standings))
 
 (defpackage :mud.merchant
   (:use :cl)

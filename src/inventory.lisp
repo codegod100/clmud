@@ -121,7 +121,50 @@
               :portable nil
               :damage 15
               :armor 12
-              :description "A sleek black motorcycle with chrome accents. The engine rumbles with power."))
+              :description "A sleek black motorcycle with chrome accents. The engine rumbles with power.")
+   ;; Faction quest items
+   (make-item :name "spirit-essence"
+              :type :consumable
+              :quest-item t
+              :description "A glowing essence collected from ancient stone circles. It pulses with spiritual energy.")
+   (make-item :name "rare-ore"
+              :type :consumable
+              :quest-item t
+              :description "Precious ore extracted from deep within the mountain mines. It gleams with untapped potential.")
+   (make-item :name "ancient-texts"
+              :type :consumable
+              :quest-item t
+              :description "Forbidden texts written in an ancient language. They seem to whisper dark secrets.")
+   (make-item :name "nature-seeds"
+              :type :consumable
+              :quest-item t
+              :description "Sacred seeds from the ancient groves. They pulse with the life force of nature itself.")
+   ;; Faction reward items
+   (make-item :name "royal-badge"
+              :type :armor
+              :armor 5
+              :slot :armor
+              :description "A polished badge bearing the Royal Guard emblem. It grants respect and protection.")
+   (make-item :name "spirit-totem"
+              :type :armor
+              :armor 4
+              :slot :armor
+              :description "A carved totem blessed by the Nomad Tribes. It connects you to the spirit realm.")
+   (make-item :name "forged-weapon"
+              :type :weapon
+              :damage 25
+              :slot :weapon
+              :description "A masterwork weapon forged by the Mountain Clans. Its craftsmanship is unmatched.")
+   (make-item :name "dark-artifact"
+              :type :weapon
+              :damage 30
+              :slot :weapon
+              :description "A mysterious artifact imbued with dark power. It thrums with forbidden energy.")
+   (make-item :name "life-essence"
+              :type :consumable
+              :effect :restore-health
+              :value 50
+              :description "Pure life essence from the Nature Guardians. It can heal even the most grievous wounds."))
   "List of item templates")
 
 (defun find-item-template (name)

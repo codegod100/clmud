@@ -835,6 +835,18 @@
             (format nil "~a dropped: ~{~a~^, ~}" (mob-name mob)
                     (mapcar #'item-name loot))
             :bright-yellow))))
+      ;; Apply faction disfavor if mob belonged to a faction
+      (when (mud.mob::mob-faction mob)
+        (let ((faction-id (mud.mob::mob-faction mob))
+              (disfavor (- 15))) ; -15 disfavor for killing faction mobs
+          (let ((new-standing (mud.player::modify-faction-standing player faction-id disfavor)))
+            (write-crlf (player-stream player)
+             (wrap
+              (format nil "You lost ~d favor with ~a! (Total: ~a)"
+                      (abs disfavor) 
+                      (mud.quest::faction-name faction-id) 
+                      new-standing)
+              :bright-red)))))
       ;; Drop vehicle if mob had one
       (let ((vehicle (mud.mob::mob-vehicle mob)))
         (when vehicle

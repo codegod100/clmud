@@ -22,6 +22,7 @@
   attack-interval ; Interval between attacks (in seconds)
   quest-giver     ; Quest ID this mob can give (nil if not a quest giver)
   vehicle         ; Vehicle the mob is using (nil if none)
+  faction         ; Faction ID this mob belongs to (nil if neutral)
   )
 
 (defparameter *mob-templates* (make-hash-table :test #'eq)
@@ -30,7 +31,7 @@
 (defparameter *room-mobs* (make-hash-table :test #'eq)
   "Hash table of room-id -> list of mob instances in that room")
 
-(defun define-mob-template (id name description max-health damage armor xp-reward loot-table &key (aggressive nil) (move-interval-min 30) (move-interval-max 120) (quest-giver nil) (vehicle nil))
+(defun define-mob-template (id name description max-health damage armor xp-reward loot-table &key (aggressive nil) (move-interval-min 30) (move-interval-max 120) (quest-giver nil) (vehicle nil) (faction nil))
   "Define a mob template"
   (setf (gethash id *mob-templates*)
         (make-mob :id id
@@ -51,7 +52,8 @@
                   :last-attack-time 0
                   :attack-interval 3
                   :quest-giver quest-giver
-                  :vehicle vehicle)))
+                  :vehicle vehicle
+                  :faction faction)))
 
 (defun find-mob-template (id)
   "Find a mob template by ID"
@@ -203,6 +205,128 @@
                        :aggressive nil
                        :quest-giver :pirate-treasure)
 
+  ;; Faction Mobs - Each faction has representative mobs
+
+  ;; Royal Guard faction mobs
+  (define-mob-template :royal-guard
+                       "a Royal Guard soldier"
+                       "A disciplined soldier in polished armor, carrying a gleaming sword. The Royal Guard emblem is proudly displayed on their breastplate."
+                       60    ; max-health
+                       18    ; damage
+                       8     ; armor
+                       120   ; xp-reward
+                       '("royal-sword" "royal-armor" "guard-badge")
+                       :aggressive nil
+                       :faction :royal-guard)
+
+  (define-mob-template :royal-commander
+                       "Royal Guard Commander"
+                       "A distinguished officer with years of military experience. Their armor bears the marks of many battles, and their sword is a masterwork of craftsmanship."
+                       100   ; max-health
+                       25    ; damage
+                       12    ; armor
+                       200   ; xp-reward
+                       '("commander-sword" "commander-armor" "royal-seal")
+                       :aggressive nil
+                       :faction :royal-guard
+                       :quest-giver :royal-guard-patrol)
+
+  ;; Nomad Tribes faction mobs
+  (define-mob-template :nomad-scout
+                       "a nomad scout"
+                       "A lean figure in leather armor, moving with the grace of one who has spent their life on the open plains. Their eyes are sharp and watchful."
+                       45    ; max-health
+                       15    ; damage
+                       5     ; armor
+                       90    ; xp-reward
+                       '("nomad-bow" "leather-armor" "spirit-totem")
+                       :aggressive nil
+                       :faction :nomad-tribes)
+
+  (define-mob-template :nomad-shaman
+                       "a nomad shaman"
+                       "A wise elder with intricate tattoos covering their weathered skin. They carry a staff topped with feathers and bones, and their eyes hold ancient knowledge."
+                       70    ; max-health
+                       20    ; damage
+                       6     ; armor
+                       150   ; xp-reward
+                       '("shaman-staff" "spirit-robe" "ancient-totem")
+                       :aggressive nil
+                       :faction :nomad-tribes
+                       :quest-giver :spirit-gathering)
+
+  ;; Mountain Clans faction mobs
+  (define-mob-template :mountain-miner
+                       "a mountain miner"
+                       "A sturdy dwarf with calloused hands and a pickaxe slung over their shoulder. Their beard is braided with metal rings, and their eyes sparkle with the joy of finding precious gems."
+                       55    ; max-health
+                       16    ; damage
+                       7     ; armor
+                       100   ; xp-reward
+                       '("mining-pick" "miner-helmet" "raw-gems")
+                       :aggressive nil
+                       :faction :mountain-clans)
+
+  (define-mob-template :clan-smith
+                       "a clan smith"
+                       "A master craftsman with massive arms and a leather apron. Their hammer rings against the anvil as they forge weapons and armor of exceptional quality."
+                       80    ; max-health
+                       22    ; damage
+                       10    ; armor
+                       180   ; xp-reward
+                       '("smith-hammer" "forged-armor" "masterwork-sword")
+                       :aggressive nil
+                       :faction :mountain-clans
+                       :quest-giver :ore-collection)
+
+  ;; Shadow Cult faction mobs
+  (define-mob-template :cult-acolyte
+                       "a cult acolyte"
+                       "A hooded figure in dark robes, their face hidden in shadow. They carry a tome bound in strange leather and whisper incantations under their breath."
+                       50    ; max-health
+                       14    ; damage
+                       4     ; armor
+                       80    ; xp-reward
+                       '("dark-tome" "cult-robe" "shadow-dust")
+                       :aggressive nil
+                       :faction :shadow-cult)
+
+  (define-mob-template :cult-master
+                       "a cult master"
+                       "A powerful figure in ornate dark robes, their eyes glowing with forbidden knowledge. Ancient symbols float around them, and the air crackles with dark energy."
+                       90    ; max-health
+                       28    ; damage
+                       8     ; armor
+                       220   ; xp-reward
+                       '("master-tome" "dark-robe" "shadow-orb")
+                       :aggressive nil
+                       :faction :shadow-cult
+                       :quest-giver :forbidden-knowledge)
+
+  ;; Nature Guardians faction mobs
+  (define-mob-template :forest-druid
+                       "a forest druid"
+                       "A peaceful figure in robes of living leaves, their skin marked with natural tattoos. They carry a staff of living wood and move with the grace of the forest itself."
+                       65    ; max-health
+                       19    ; damage
+                       6     ; armor
+                       130   ; xp-reward
+                       '("druid-staff" "leaf-armor" "nature-seed")
+                       :aggressive nil
+                       :faction :nature-guardians)
+
+  (define-mob-template :grove-keeper
+                       "the Grove Keeper"
+                       "An ancient guardian with bark-like skin and eyes that hold the wisdom of centuries. They are the protector of the sacred grove, wielding the power of nature itself."
+                       120   ; max-health
+                       30    ; damage
+                       15    ; armor
+                       300   ; xp-reward
+                       '("ancient-staff" "bark-armor" "life-essence")
+                       :aggressive nil
+                       :faction :nature-guardians
+                       :quest-giver :nature-balance)
+
   ;; Spawn initial mobs in the world
   (spawn-mob :goblin 'mud.world::whispering-wood)
   (spawn-mob :wolf 'mud.world::whispering-wood)
@@ -210,7 +334,28 @@
   (spawn-mob :bandit 'mud.world::moonlit-lane)
   (spawn-mob :forest-guardian 'mud.world::ancient-grove)
   (spawn-mob :village-elder 'mud.world::village-square)
-  (spawn-mob :captain-blackbeard 'mud.world::hidden-cove))
+  (spawn-mob :captain-blackbeard 'mud.world::hidden-cove)
+
+  ;; Spawn faction mobs in their respective regions
+  ;; Royal Guard faction
+  (spawn-mob :royal-guard 'mud.world::northern-outpost)
+  (spawn-mob :royal-commander 'mud.world::northern-outpost)
+  
+  ;; Nomad Tribes faction
+  (spawn-mob :nomad-scout 'mud.world::eastern-plains)
+  (spawn-mob :nomad-shaman 'mud.world::eastern-plains)
+  
+  ;; Mountain Clans faction
+  (spawn-mob :mountain-miner 'mud.world::western-hills)
+  (spawn-mob :clan-smith 'mud.world::western-hills)
+  
+  ;; Shadow Cult faction
+  (spawn-mob :cult-acolyte 'mud.world::southern-desert)
+  (spawn-mob :cult-master 'mud.world::southern-desert)
+  
+  ;; Nature Guardians faction
+  (spawn-mob :forest-druid 'mud.world::spirit-grove)
+  (spawn-mob :grove-keeper 'mud.world::spirit-grove))
 
 ;;; Mob Movement System
 

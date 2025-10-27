@@ -129,6 +129,8 @@
   (write-crlf (player-stream player)
    "  Quests: quest, quest-reset <quest>, status")
   (write-crlf (player-stream player)
+   "  Factions: faction, faction <faction-name>")
+  (write-crlf (player-stream player)
    "  Other: help, quit, save, time [HH:MM], . (repeat last command), locate <mob>, suicide (test death)")
   )
 
@@ -321,3 +323,53 @@
    (format nil "~a appears, looking worse for wear."
            (wrap (player-name player) :bright-green))
    :include-self nil))
+
+(define-command (("faction") command-faction) (player rest)
+  (if (zerop (length rest))
+      ;; Show all faction standings
+      (let ((standings (mud.player::list-faction-standings player)))
+        (if standings
+            (progn
+              (write-crlf (player-stream player)
+               (wrap "Your Faction Standing:" :bright-yellow))
+              (dolist (standing standings)
+                (let ((faction-id (first standing))
+                      (points (second standing))
+                      (reputation (third standing)))
+                  (write-crlf (player-stream player)
+                   (format nil "  ~a: ~a (~d points)"
+                           (mud.quest::faction-name faction-id)
+                           reputation
+                           points)))))
+            (write-crlf (player-stream player)
+             (wrap "You have no faction standings yet. Complete faction quests to gain favor!" :bright-yellow))))
+      ;; Show specific faction standing
+      (let* ((faction-name (string-trim '(#\  #\Tab) rest))
+             (faction-id (find-faction-by-name faction-name)))
+        (if faction-id
+            (let ((standing (mud.player::get-faction-standing player faction-id))
+                  (reputation (mud.player::get-faction-reputation player faction-id)))
+              (write-crlf (player-stream player)
+               (wrap (format nil "~a Standing: ~a (~d points)"
+                             (mud.quest::faction-name faction-id)
+                             reputation
+                             standing) :bright-cyan)))
+            (write-crlf (player-stream player)
+             (wrap (format nil "Unknown faction: ~a" faction-name) :bright-red)))))
+
+(defun find-faction-by-name (name)
+  "Find faction ID by name (case-insensitive)"
+  (let ((search-name (string-downcase name)))
+    (cond
+      ((or (string= search-name "royal") (string= search-name "royal guard") (string= search-name "guard"))
+       :royal-guard)
+      ((or (string= search-name "nomad") (string= search-name "nomad tribes") (string= search-name "tribes"))
+       :nomad-tribes)
+      ((or (string= search-name "mountain") (string= search-name "mountain clans") (string= search-name "clans"))
+       :mountain-clans)
+      ((or (string= search-name "shadow") (string= search-name "shadow cult") (string= search-name "cult"))
+       :shadow-cult)
+      ((or (string= search-name "nature") (string= search-name "nature guardians") (string= search-name "guardians"))
+       :nature-guardians)
+      (t nil))))
+)

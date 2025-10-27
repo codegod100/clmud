@@ -303,9 +303,105 @@
                "A major intersection where several roads meet. A weathered signpost points in multiple directions, and the ground is worn smooth by countless wheels. This is clearly a well-traveled route for vehicles."
                '((:south :ground . highway-north)
                  (:east :ground . highway-east)
-                 (:west :ground . highway-west))
-               '(("signpost" . "The wooden signpost is weathered but still readable. It points to various destinations: 'Village' to the south, 'Eastern Plains' to the east, and 'Western Hills' to the west.")
+                 (:west :ground . highway-west)
+                 (:north :ground . northern-outpost))
+               '(("signpost" . "The wooden signpost is weathered but still readable. It points to various destinations: 'Village' to the south, 'Eastern Plains' to the east, 'Western Hills' to the west, and 'Northern Outpost' to the north.")
                  ("worn ground" . "The intersection is heavily traveled, with deep ruts from wagon wheels and vehicle tracks crisscrossing the area.")))
+
+  ;; Faction Regions - 5 new areas with distinct factions
+
+  ;; 1. Northern Outpost - The Royal Guard faction
+  (define-room 'northern-outpost
+               "Northern Outpost"
+               "A fortified military outpost manned by the Royal Guard. Stone walls and watchtowers surround a central courtyard where [soldiers] drill with precision. The [commander's quarters] overlook the training grounds, and a [supply depot] stores weapons and provisions. The Royal Guard maintains order and protects the realm from threats."
+               '((:south :ground . highway-crossroads)
+                 (:east :ground . eastern-plains)
+                 (:west :ground . western-hills)
+                 (:north :ground . mountain-pass))
+               '(("soldiers" . "The Royal Guard soldiers train with discipline and honor. They wear polished armor and carry well-maintained weapons. Their loyalty to the crown is unwavering.")
+                 ("commander's quarters" . "A sturdy building where the outpost commander plans operations and receives reports. The Royal Guard flag flies proudly from its roof.")
+                 ("supply depot" . "A well-organized storage facility containing weapons, armor, and supplies. Everything is meticulously catalogued and maintained.")))
+
+  ;; 2. Eastern Plains - The Nomad Tribes faction  
+  (define-room 'eastern-plains
+               "Eastern Plains"
+               "Vast grasslands stretch to the horizon, dotted with [nomad camps] and [ancient stone circles]. The Nomad Tribes roam these lands freely, following the seasons and living in harmony with nature. [Traders] set up temporary markets, and [spirit stones] mark sacred sites. The nomads value freedom and independence above all else."
+               '((:west :ground . highway-crossroads)
+                 (:north :ground . northern-outpost)
+                 (:east :ground . spirit-grove)
+                 (:south :ground . southern-desert))
+               '(("nomad camps" . "Colorful tents and wagons form temporary settlements. The nomads live simply but with great wisdom, sharing stories around their campfires.")
+                 ("ancient stone circles" . "Mysterious stone formations that predate recorded history. The nomads say they were placed by the spirits to guide travelers.")
+                 ("traders" . "Merchants from distant lands set up temporary stalls, trading exotic goods and stories from faraway places.")
+                 ("spirit stones" . "Sacred stones that pulse with ancient energy. The nomads believe they connect the physical world to the spirit realm.")))
+
+  ;; 3. Western Hills - The Mountain Clans faction
+  (define-room 'western-hills
+               "Western Hills"
+               "Rugged mountains rise majestically, their peaks lost in clouds. The Mountain Clans have carved their homes into the rock faces, creating [cliff dwellings] connected by [rope bridges]. [Mining operations] extract precious metals from deep within the earth, and [clan halls] echo with the sound of hammers on anvils. The clans are known for their craftsmanship and stoic determination."
+               '((:east :ground . highway-crossroads)
+                 (:north :ground . northern-outpost)
+                 (:west :ground . deep-mines)
+                 (:south :ground . southern-desert))
+               '(("cliff dwellings" . "Homes carved directly into the mountain face, with windows overlooking the valley below. The Mountain Clans have lived here for generations.")
+                 ("rope bridges" . "Sturdy bridges connect the various levels of the cliff dwellings. The clans are expert climbers and bridge builders.")
+                 ("mining operations" . "Deep tunnels lead into the mountain's heart, where miners extract precious metals and gems. The work is dangerous but rewarding.")
+                 ("clan halls" . "Great halls where the Mountain Clans gather for important decisions and celebrations. The walls are adorned with trophies and clan banners.")))
+
+  ;; 4. Southern Desert - The Shadow Cult faction
+  (define-room 'southern-desert
+               "Southern Desert"
+               "Endless sand dunes stretch under a scorching sun, broken only by [ancient ruins] and [oasis settlements]. The Shadow Cult operates from hidden [underground temples], practicing forbidden arts and seeking power through dark rituals. [Sandstorms] frequently sweep across the dunes, and [mysterious obelisks] mark the locations of ancient power. The cult values knowledge and power above all else."
+               '((:north :ground . highway-crossroads)
+                 (:east :ground . eastern-plains)
+                 (:west :ground . western-hills)
+                 (:south :ground . forbidden-oasis))
+               '(("ancient ruins" . "Crumbling structures that hint at a once-great civilization. The Shadow Cult studies these ruins for lost knowledge and power.")
+                 ("oasis settlements" . "Small communities built around precious water sources. The inhabitants are wary of outsiders and keep to themselves.")
+                 ("underground temples" . "Hidden beneath the sand, these temples are where the Shadow Cult performs its most secretive rituals and studies forbidden arts.")
+                 ("sandstorms" . "Fierce winds whip sand into blinding clouds that can last for days. Only the most experienced desert travelers dare venture out during these storms.")
+                 ("mysterious obelisks" . "Tall stone pillars covered in strange symbols that seem to shift and change when viewed from different angles. They pulse with dark energy.")))
+
+  ;; 5. Spirit Grove - The Nature Guardians faction
+  (define-room 'spirit-grove
+               "Spirit Grove"
+               "A mystical forest where ancient trees tower overhead, their branches forming a natural cathedral. The Nature Guardians tend to this sacred place, protecting the [spirit wells] and [ancient groves]. [Druid circles] mark places of power, and [wildlife] moves freely without fear. The guardians believe in the balance of nature and the interconnectedness of all living things."
+               '((:west :ground . eastern-plains)
+                 (:north :ground . northern-outpost)
+                 (:east :ground . crystal-caverns)
+                 (:south :ground . forbidden-oasis))
+               '(("spirit wells" . "Sacred pools of crystal-clear water that never run dry. The Nature Guardians say these wells are connected to the life force of the world itself.")
+                 ("ancient groves" . "Circles of the oldest trees in the forest, where the most powerful nature magic is practiced. The air here hums with natural energy.")
+                 ("druid circles" . "Stone circles where the Nature Guardians perform their rituals and commune with the spirits of the forest. The stones are carved with symbols of nature.")
+                 ("wildlife" . "Animals of all kinds move freely through the grove, unafraid of human presence. They seem to understand that this is a place of peace and protection.")))
+
+  ;; Additional connecting rooms for the faction regions
+  (define-room 'mountain-pass
+               "Mountain Pass"
+               "A narrow path winding through the mountains, connecting the Northern Outpost to the deeper mountain regions. The air is thin and cold, and [eagles] soar overhead. The Royal Guard maintains a small checkpoint here to monitor traffic."
+               '((:south :ground . northern-outpost))
+               '(("eagles" . "Majestic birds of prey that nest in the high peaks. They seem to watch over the pass with keen eyes.")))
+
+  (define-room 'deep-mines
+               "Deep Mines"
+               "A network of tunnels that extend deep into the mountain's heart. The Mountain Clans work here extracting precious metals and gems. The air is thick with the sound of [pickaxes] and the glow of [mining lanterns]."
+               '((:east :ground . western-hills))
+               '(("pickaxes" . "The rhythmic sound of metal striking stone echoes through the tunnels as miners work to extract precious materials.")
+                 ("mining lanterns" . "Oil lamps that provide light in the dark tunnels. They cast dancing shadows on the rough stone walls.")))
+
+  (define-room 'crystal-caverns
+               "Crystal Caverns"
+               "A hidden network of caves filled with glowing crystals that pulse with natural energy. The Nature Guardians use this place for their most sacred rituals, and the [crystal formations] seem to sing with the voice of the earth itself."
+               '((:west :ground . spirit-grove))
+               '(("crystal formations" . "Massive crystals that grow from the cave floor and ceiling, each one pulsing with a different color of light. They seem to respond to the presence of those with pure hearts.")))
+
+  (define-room 'forbidden-oasis
+               "Forbidden Oasis"
+               "A hidden oasis deep in the desert, surrounded by ancient ruins and guarded by the Shadow Cult. The water here is said to have mystical properties, and [dark rituals] are performed under the light of the full moon. Only those with the cult's favor may approach safely."
+               '((:north :ground . southern-desert)
+                 (:west :ground . spirit-grove))
+               '(("dark rituals" . "Strange ceremonies are performed here under the cover of darkness. The air itself seems to crackle with forbidden energy.")
+                 ("mystical water" . "The oasis water shimmers with an otherworldly glow, and those who drink it report visions of ancient times and forgotten knowledge.")))
 
   ;; Create and place vehicle items in rooms
   (let ((car-item (mud.inventory::make-item

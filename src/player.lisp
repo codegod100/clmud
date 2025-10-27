@@ -29,6 +29,8 @@
    (inventory :initarg :inventory :accessor player-inventory :initform nil)
    (quest-state :initarg :quest-state :accessor player-quest-state :initform nil)
    (gold :initarg :gold :accessor player-gold :initform 0)
+   ;; Faction standing - hash table of faction-id -> favor points
+   (faction-standing :initarg :faction-standing :accessor player-faction-standing :initform nil)
    ;; Equipment slots
    (equipped-weapon :initarg :equipped-weapon :accessor player-equipped-weapon :initform nil)
    (equipped-armor :initarg :equipped-armor :accessor player-equipped-armor :initform nil)
@@ -471,3 +473,47 @@
     (warn "Failed to restore player snapshot for ~a: ~a"
       (getf entry :name) err))))
   count)))
+
+;;; Faction System
+
+(defun get-faction-standing (player faction-id)
+  "Get a player's standing with a specific faction"
+  (let ((faction-table (player-faction-standing player)))
+    (if faction-table
+        (gethash faction-id faction-table 0)
+        0)))
+
+(defun set-faction-standing (player faction-id points)
+  "Set a player's standing with a specific faction"
+  (unless (player-faction-standing player)
+    (setf (player-faction-standing player) (make-hash-table :test #'eq)))
+  (setf (gethash faction-id (player-faction-standing player)) points))
+
+(defun modify-faction-standing (player faction-id delta)
+  "Modify a player's standing with a faction by the given amount"
+  (let ((current-points (get-faction-standing player faction-id)))
+    (let ((new-points (+ current-points delta)))
+      (set-faction-standing player faction-id new-points)
+      new-points)))
+
+(defun get-faction-reputation (player faction-id)
+  "Get a text description of the player's reputation with a faction"
+  (let ((standing (get-faction-standing player faction-id)))
+    (cond
+      ((>= standing 100) "Exalted")
+      ((>= standing 50) "Honored")
+      ((>= standing 25) "Friendly")
+      ((>= standing 0) "Neutral")
+      ((>= standing -25) "Unfriendly")
+      ((>= standing -50) "Hostile")
+      (t "Hated"))))
+
+(defun list-faction-standings (player)
+  "Get a list of all faction standings for a player"
+  (let ((faction-table (player-faction-standing player))
+        (standings nil))
+    (when faction-table
+      (maphash (lambda (faction-id points)
+                 (push (list faction-id points (get-faction-reputation player faction-id)) standings))
+               faction-table))
+    (sort standings #'string< :key #'first)))

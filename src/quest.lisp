@@ -87,7 +87,37 @@
               (let ((item (mud.inventory::create-item item-name)))
                 (when item
                   (mud.inventory::add-to-inventory player item)))))
+          ;; Award faction favor for faction quests
+          (award-faction-favor-for-quest player quest-id)
           (values t leveled-up quest))))))
+
+(defun award-faction-favor-for-quest (player quest-id)
+  "Award faction favor when completing faction quests"
+  (let ((faction-id (get-quest-faction quest-id)))
+    (when faction-id
+      (let ((favor-gained (mud.player::modify-faction-standing player faction-id 25)))
+        (format t "~%You gained 25 favor with ~a! (Total: ~a)~%" 
+                (faction-name faction-id) favor-gained)))))
+
+(defun get-quest-faction (quest-id)
+  "Get the faction associated with a quest"
+  (case quest-id
+    (:royal-guard-patrol :royal-guard)
+    (:spirit-gathering :nomad-tribes)
+    (:ore-collection :mountain-clans)
+    (:forbidden-knowledge :shadow-cult)
+    (:nature-balance :nature-guardians)
+    (t nil)))
+
+(defun faction-name (faction-id)
+  "Get the display name for a faction"
+  (case faction-id
+    (:royal-guard "Royal Guard")
+    (:nomad-tribes "Nomad Tribes")
+    (:mountain-clans "Mountain Clans")
+    (:shadow-cult "Shadow Cult")
+    (:nature-guardians "Nature Guardians")
+    (t "Unknown Faction")))
 
 (defun get-active-quests (player)
   "Get list of active quests for a player"
@@ -145,7 +175,70 @@
                 300  ; Good XP reward for a more complex quest
                 "Captain Blackbeard's eyes light up! 'Ah, me treasure map! Ye've found it! Here's yer reward, matey - and keep that cutlass, it's served me well!'"
                 :repeatable t
-                :reward-items '("pirate-cutlass")))
+                :reward-items '("pirate-cutlass"))
+
+  ;; Faction Quests - Each faction has quests that give favor
+
+  ;; Royal Guard faction quests
+  (define-quest :royal-guard-patrol
+                "Patrol the Northern Border"
+                "The Royal Guard Commander needs someone to patrol the northern border and report any suspicious activity. This will help maintain order and security in the realm."
+                (lambda (player)
+                  ;; Quest is complete if player has visited the mountain pass
+                  (mud.player::get-faction-standing player :royal-guard) ; Placeholder - would need to track specific actions
+                  t) ; For now, always complete when started
+                250  ; XP reward
+                "The Royal Guard Commander salutes you. 'Excellent work, soldier! Your dedication to the realm has been noted. Here's your reward and a token of our appreciation.'"
+                :repeatable t
+                :reward-items '("royal-badge"))
+
+  ;; Nomad Tribes faction quests
+  (define-quest :spirit-gathering
+                "Gather Spirit Essence"
+                "The Nomad Shaman needs you to collect spirit essence from the ancient stone circles. This will help maintain the spiritual balance of the plains."
+                (lambda (player)
+                  ;; Quest is complete if player has spirit essence
+                  (has-item-in-inventory-p player "spirit-essence"))
+                200  ; XP reward
+                "The Nomad Shaman nods approvingly. 'You have shown respect for the spirits. The tribes will remember your service. Take this gift as a token of our friendship.'"
+                :repeatable t
+                :reward-items '("spirit-totem"))
+
+  ;; Mountain Clans faction quests
+  (define-quest :ore-collection
+                "Collect Rare Ore"
+                "The Clan Smith needs rare ore for forging special weapons. Venture into the deep mines and bring back samples of the precious metals found there."
+                (lambda (player)
+                  ;; Quest is complete if player has rare ore
+                  (has-item-in-inventory-p player "rare-ore"))
+                300  ; XP reward
+                "The Clan Smith examines the ore with expert eyes. 'Fine work! This is exactly what I needed. The clans honor your dedication to craftsmanship. Take this as a token of our respect.'"
+                :repeatable t
+                :reward-items '("forged-weapon"))
+
+  ;; Shadow Cult faction quests
+  (define-quest :forbidden-knowledge
+                "Seek Forbidden Knowledge"
+                "The Cult Master needs you to retrieve ancient texts from the underground temples. This knowledge is dangerous but powerful, and the cult values those who seek it."
+                (lambda (player)
+                  ;; Quest is complete if player has ancient texts
+                  (has-item-in-inventory-p player "ancient-texts"))
+                350  ; XP reward
+                "The Cult Master's eyes gleam with dark satisfaction. 'You have proven yourself worthy of our knowledge. The cult recognizes your potential. Take this as a sign of our favor.'"
+                :repeatable t
+                :reward-items '("dark-artifact"))
+
+  ;; Nature Guardians faction quests
+  (define-quest :nature-balance
+                "Restore Nature's Balance"
+                "The Grove Keeper needs you to help restore the natural balance by collecting seeds from the ancient groves and planting them in areas where nature has been disturbed."
+                (lambda (player)
+                  ;; Quest is complete if player has nature seeds
+                  (has-item-in-inventory-p player "nature-seeds"))
+                280  ; XP reward
+                "The Grove Keeper smiles with ancient wisdom. 'You have shown true understanding of nature's ways. The guardians welcome you as a friend of the forest. Take this gift of nature's power.'"
+                :repeatable t
+                :reward-items '("life-essence")))
 
 (defun maybe-announce-quest-rewards (player)
   "Check all active quests for completion and announce rewards"
