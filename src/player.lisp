@@ -343,30 +343,56 @@
                         (push (player-equipped-armor player) result))
                       result))
          (serialized (%serialize-inventory-with-quantities all-items))
-         (weapon-index (and (player-equipped-weapon player)
-                            (position (player-equipped-weapon player) all-items :test #'eq)))
-         (armor-index (and (player-equipped-armor player)
-                           (position (player-equipped-armor player) all-items :test #'eq))))
-    (values serialized weapon-index armor-index)))
+         (weapon-item (player-equipped-weapon player))
+         (armor-item (player-equipped-armor player))
+         (weapon-name (and weapon-item (mud.inventory:item-name weapon-item)))
+         (armor-name (and armor-item (mud.inventory:item-name armor-item)))
+         (weapon-index (and weapon-item (position weapon-item all-items :test #'eq)))
+         (armor-index (and armor-item (position armor-item all-items :test #'eq))))
+    (values serialized weapon-name armor-name weapon-index armor-index)))
 
-(defun %restore-inventory (player data weapon-index armor-index)
+(defun %restore-inventory (player data weapon-name weapon-index armor-name armor-index)
   (let ((items (if (and data (listp data) (consp (first data)))
                    ;; New format: item quantities
                    (%deserialize-inventory-with-quantities data)
                    ;; Old format: individual items
                    (mapcar #'%deserialize-item data))))
     (setf (player-inventory player) items)
-    (when (and (integerp weapon-index) (<= 0 weapon-index) (< weapon-index (length items)))
-      (setf (player-equipped-weapon player) (nth weapon-index items)))
-    (when (and (integerp armor-index) (<= 0 armor-index) (< armor-index (length items)))
-      (setf (player-equipped-armor player) (nth armor-index items)))
+    ;; Find and equip weapon by index or name
+    (let ((weapon-item (cond
+                         ((and (integerp weapon-index)
+                               (<= 0 weapon-index)
+                               (< weapon-index (length items)))
+                          (nth weapon-index items))
+                         ((and weapon-name)
+                          (find weapon-name items :key #'mud.inventory:item-name :test #'string=))
+                         (t nil))))
+      (when weapon-item
+        (setf (player-equipped-weapon player) weapon-item)))
+    ;; Find and equip armor by index or name
+    (let ((armor-item (cond
+                        ((and (integerp armor-index)
+                              (<= 0 armor-index)
+                              (< armor-index (length items)))
+                         (nth armor-index items))
+                        ((and armor-name)
+                         (find armor-name items :key #'mud.inventory:item-name :test #'string=))
+                        (t nil))))
+      (when armor-item
+        (setf (player-equipped-armor player) armor-item)))
     ;; Remove equipped items from inventory to avoid duplicates
     (when (player-equipped-weapon player)
-      (setf (player-inventory player) 
-            (remove (player-equipped-weapon player) (player-inventory player) :test #'eq)))
+      (let ((weapon-name (mud.inventory:item-name (player-equipped-weapon player))))
+        (setf (player-inventory player) 
+              (remove-if (lambda (item) 
+                           (string= (mud.inventory:item-name item) weapon-name))
+                         (player-inventory player)))))
     (when (player-equipped-armor player)
-      (setf (player-inventory player) 
-            (remove (player-equipped-armor player) (player-inventory player) :test #'eq)))))
+      (let ((armor-name (mud.inventory:item-name (player-equipped-armor player))))
+        (setf (player-inventory player) 
+              (remove-if (lambda (item) 
+                           (string= (mud.inventory:item-name item) armor-name))
+                         (player-inventory player)))))))
 
 (defun show-simple-status (player)
   "Show basic player status (used for auto-status updates)"
@@ -387,7 +413,7 @@
       (force-output stream))))
 
 (defun %serialize-player (player)
-  (multiple-value-bind (inventory weapon-index armor-index)
+  (multiple-value-bind (inventory weapon-name armor-name weapon-index armor-index)
       (%serialize-inventory player)
     (list :name (player-name player)
           :room (player-room player)
@@ -399,7 +425,9 @@
           :xp (player-xp player)
           :gold (player-gold player)
           :inventory inventory
+          :equipped-weapon-name weapon-name
           :equipped-weapon-index weapon-index
+          :equipped-armor-name armor-name
           :equipped-armor-index armor-index
           :quest-state (%quest-state->alist (player-quest-state player))
           :vehicle (player-vehicle player)
@@ -443,7 +471,9 @@
           (setf (player-gold player) gold)))
       (%restore-inventory player
                           (or (getf data :inventory) '())
+                          (getf data :equipped-weapon-name)
                           (getf data :equipped-weapon-index)
+                          (getf data :equipped-armor-name)
                           (getf data :equipped-armor-index))
       (let ((quest (getf data :quest-state)))
         (setf (player-quest-state player) (%alist->quest-state quest)))

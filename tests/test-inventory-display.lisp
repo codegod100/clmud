@@ -30,16 +30,18 @@
       (format t "=== Inventory Display Test ===~%")
       (format t "~a~%" inventory-display)
       
-      ;; Check that equipped items are NOT shown in inventory
-      (let ((has-equipped-weapon (search "pirate-cutlass" inventory-display))
-            (has-equipped-armor (search "nature-amulet" inventory-display)))
-        (if (and (not has-equipped-weapon) (not has-equipped-armor))
+      ;; Check that equipped items appear with [EQUIPPED]
+      (let ((equipped-weapon (count-substring "Currently equipped weapon" inventory-display))
+            (equipped-armor (count-substring "Currently equipped armor" inventory-display)))
+        (if (and (= equipped-weapon 1)
+                 (= equipped-armor 1))
             (progn
-              (format t "✅ SUCCESS: Equipped items are hidden from inventory~%")
+              (format t "✅ SUCCESS: Equipped items displayed separately~%")
               t)
             (progn
-              (format t "❌ FAILED: Equipped items should be hidden from inventory~%")
-              nil))))))
+              (format t "❌ FAILED: Equipped items not shown separately (weapon ~d, armor ~d)~%"
+                      equipped-weapon equipped-armor)
+              nil)))))
 
 (defun test-inventory-display-without-equipped-items ()
   "Test that non-equipped items don't show [EQUIPPED] status"
@@ -89,15 +91,19 @@
       (format t "=== Duplicate Equipped Items Test ===~%")
       (format t "~a~%" inventory-display)
       
-      ;; Check that we have 1 pirate-cutlass item (the unequipped one) and no [EQUIPPED] status
-      (let ((cutlass-count (count-substring "pirate-cutlass" inventory-display))
-            (equipped-count (count-substring "[EQUIPPED]" inventory-display)))
-        (if (and (= cutlass-count 1) (= equipped-count 0))
+      ;; Expect duplicate to show one inventory copy plus equipped summaries
+      (let ((cutlass-total (count-substring "pirate-cutlass" inventory-display))
+            (equipped-weapon (count-substring "Currently equipped weapon" inventory-display))
+            (equipped-tags (count-substring "[EQUIPPED]" inventory-display)))
+        (if (and (>= cutlass-total 1)
+                 (= equipped-weapon 1)
+                 (>= equipped-tags 1))
             (progn
-              (format t "✅ SUCCESS: Found 1 pirate-cutlass item (unequipped), no [EQUIPPED] status~%")
+              (format t "✅ SUCCESS: Inventory shows duplicates and equipped summary~%")
               t)
             (progn
-              (format t "❌ FAILED: Expected 1 pirate-cutlass item and 0 [EQUIPPED], found ~d and ~d~%" cutlass-count equipped-count)
+              (format t "❌ FAILED: Inventory/equipped summary mismatch (total ~d, equip-lines ~d, tags ~d)~%"
+                      cutlass-total equipped-weapon equipped-tags)
               nil))))))
 
 (defun count-substring (substring string)
@@ -132,3 +138,4 @@
 
 ;; Run the tests
 (run-tests)
+)

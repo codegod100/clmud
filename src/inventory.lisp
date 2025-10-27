@@ -303,28 +303,39 @@
                       (format out "Coins: ~d~%" (mud.player:player-gold player))
                       
                       ;; Display with counts and equipped status
-              (maphash (lambda (name count)
-                         (let ((template (find-item-template name)))
-                           (when template
-                             (let ((is-equipped-weapon (and equipped-weapon
-                                                           (string= name (mud.inventory::item-name equipped-weapon))))
-                                   (is-equipped-armor (and equipped-armor
-                                                          (string= name (mud.inventory::item-name equipped-armor))))
-                                   (item-type (mud.inventory::item-type template))
-                                   (damage (mud.inventory::item-damage template))
-                                   (armor (mud.inventory::item-armor template)))
-                               ;; Format: name x count - description [+damage/+armor]
-                               (format out "  ~a x~d - ~a"
-                                      name count
-                                      (mud.inventory::item-description template))
-                               ;; Add stats if weapon or armor
-                               (cond
-                                 ((and (eq item-type :weapon) (> damage 0))
-                                  (format out " [+~d damage]" damage))
-                                 ((and (eq item-type :armor) (> armor 0))
-                                  (format out " [+~d armor]" armor)))
-                                 (format out "~%")))))
-                        item-counts))))))))))
+                      (maphash (lambda (name count)
+                                 (let ((template (find-item-template name)))
+                                   (when template
+                                     (let ((is-equipped-weapon (and equipped-weapon
+                                                                    (string= name (mud.inventory::item-name equipped-weapon))))
+                                           (is-equipped-armor (and equipped-armor
+                                                                   (string= name (mud.inventory::item-name equipped-armor))))
+                                           (item-type (mud.inventory::item-type template))
+                                           (damage (mud.inventory::item-damage template))
+                                           (armor (mud.inventory::item-armor template)))
+                                       ;; Format: name x count - description [+damage/+armor]
+                                       (format out "  ~a x~d - ~a"
+                                               name count
+                                               (mud.inventory::item-description template))
+                                       ;; Add stats if weapon or armor
+                                       (cond
+                                         ((and (eq item-type :weapon) (> damage 0))
+                                          (format out " [+~d damage]" damage))
+                                         ((and (eq item-type :armor) (> armor 0))
+                                          (format out " [+~d armor]" armor)))
+                                       (when (or is-equipped-weapon is-equipped-armor)
+                                         (format out " [EQUIPPED]"))
+                                       (format out "~%")))))
+                               item-counts)
+                      ;; Show equipped items explicitly (even if removed from inventory)
+                      (when equipped-weapon
+                        (format out "  ~a - Currently equipped weapon [+~d damage] [EQUIPPED in slot]~%"
+                                (mud.inventory:item-name equipped-weapon)
+                                (mud.inventory:item-damage equipped-weapon)))
+                      (when equipped-armor
+                        (format out "  ~a - Currently equipped armor [+~d armor] [EQUIPPED in slot]~%"
+                                (mud.inventory:item-name equipped-armor)
+                                (mud.inventory:item-armor equipped-armor))))))))))))
 
 (defun use-item (player item-name)
   "Use an item from player's inventory or room. Returns (values success message)"

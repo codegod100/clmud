@@ -248,6 +248,11 @@
            :quest-reward-text
            :maybe-announce-quest-rewards))
 
+(defpackage :mud.game-state
+  (:use :cl :mud.player :mud.world)
+  (:export :game-state :make-game-state :game-state-timestamp :game-state-global-tick :game-state-players
+           :save-game-state :load-game-state))
+
 (defpackage :mud.server
   (:use :cl
         :sb-bsd-sockets
@@ -259,8 +264,9 @@
         :mud.mob
         :mud.combat
         :mud.quest
-        :mud.merchant)
-  (:shadow :log)
+        :mud.merchant
+        :mud.game-state)
+  (:shadow :log :save-game-state)
   (:export :start :stop :await
            :handle-aggressive-mob-attack
            :handle-mob-attack-player
