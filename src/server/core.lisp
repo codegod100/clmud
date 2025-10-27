@@ -597,38 +597,34 @@
       ((null target)
        (let ((stream (player-stream player))
              (required-vehicle-type (get-required-vehicle-type room direction)))
-         (if required-vehicle-type
-             (if (eq required-vehicle-type :pedestrian)
-                 (write-crlf stream 
-                  (wrap (format nil "You need to exit your vehicle to go ~a." 
-                               (string-downcase (symbol-name direction)))
-                        :bright-red))
-                 (write-crlf stream 
-                  (wrap (format nil "You need a ~a to go ~a." 
-                               (get-vehicle-type-description required-vehicle-type)
-                               (string-downcase (symbol-name direction)))
-                        :bright-red))))
-             (write-crlf stream (wrap "You can't go that way." :bright-red))))
-         nil))
+         (cond
+           ((null required-vehicle-type)
+            (write-crlf stream (wrap "You can't go that way." :bright-red)))
+           ((eq required-vehicle-type :pedestrian)
+            (write-crlf stream (wrap "You need to exit your vehicle to go that way." :bright-red)))
+           (t
+            (write-crlf stream (wrap "You need a vehicle to go that way." :bright-red))))))
+         nil)
       ;; Allow movement
       (t
        (progn
          ;; End combat with any mobs in the current room
-         (let* ((current-room-id (mud.player::player-room player))
-                (mobs (mud.mob::get-mobs-in-room current-room-id)))
+         (let* ((current-room-id (player-room player))
+                (mobs (get-mobs-in-room current-room-id)))
            (dolist (mob mobs)
-             (when (and (mud.mob::mob-in-combat-p mob)
+             (when (and (mob-in-combat-p mob)
                         (eq (mud.mob::mob-combat-target mob) player))
-               (mud.mob::end-combat mob))))
+               (end-combat mob))))
          
          (announce-to-room player
-          (format nil "~a slips ~a." (wrap (player-name player) :bright-blue)
-                  (string-downcase (symbol-name direction))))
+          (concatenate 'string (wrap (player-name player) :bright-blue) " slips " 
+                      (string-downcase (symbol-name direction)) ".")
+          :include-self nil)
          (set-player-room player (room-id target))
          (announce-to-room player
-          (format nil "~a arrives from ~a." (wrap (player-name player) :bright-green)
-                  (wrap (room-name room) :bright-cyan))
-          :include-self nil)
+          (concatenate 'string (wrap (player-name player) :bright-green) " arrives from " 
+                      (wrap (room-name room) :bright-cyan) ".")
+          :include-self nil))
          (send-room-overview player)
          t))))
 
@@ -989,5 +985,5 @@
           ((string= dir "u") :up) ((string= dir "d") :down)
           ((string= dir "ne") :northeast) ((string= dir "nw") :northwest)
           ((string= dir "se") :southeast) ((string= dir "sw") :southwest)
-          (t (intern (string-upcase dir) :keyword))))))
+          (t (intern (string-upcase dir) :keyword)))))
 
