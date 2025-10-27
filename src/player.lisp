@@ -434,7 +434,8 @@
           :equipped-armor-index armor-index
           :quest-state (%quest-state->alist (player-quest-state player))
           :vehicle (player-vehicle player)
-          :auto-fight (player-auto-fight player))))
+          :auto-fight (player-auto-fight player)
+          :auto-loot (player-auto-loot player))))
 
 (defun %restore-player (data default-room valid-room-p)
   (let ((name (getf data :name)))
@@ -483,6 +484,8 @@
       (setf (player-vehicle player) (getf data :vehicle))
       (let ((auto-fight (getf data :auto-fight)))
         (setf (player-auto-fight player) auto-fight))
+      (let ((auto-loot (getf data :auto-loot)))
+        (setf (player-auto-loot player) auto-loot))
       player)))
 
 (defun collect-player-snapshots ()

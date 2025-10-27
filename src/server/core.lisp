@@ -279,6 +279,20 @@
          (wrap (format nil "~a: ~a" (item-name room-item)
                        (mud.inventory:item-description room-item))
                :bright-white))
+        ;; Show corpse contents if it's a corpse
+        (when (eq (mud.inventory:item-type room-item) :corpse)
+          (let ((corpse-items (mud.combat::get-corpse-contents room-item)))
+            (if corpse-items
+                (progn
+                  (write-crlf stream
+                   (wrap (format nil "Contents: ~{~a~^, ~}" 
+                                 (mapcar #'mud.inventory::item-name corpse-items))
+                         :bright-yellow))
+                  (write-crlf stream
+                   (wrap (format nil "~d item~:p total" (length corpse-items))
+                         :bright-cyan)))
+                (write-crlf stream
+                 (wrap "The corpse is empty." :bright-red)))))
         ;; Show vehicle stats if it's a vehicle
         (when (eq (mud.inventory:item-type room-item) :vehicle)
           (let* ((vehicle-template (mud.world::find-vehicle (mud.inventory:item-name room-item))))
@@ -839,7 +853,26 @@
           (mud.world::add-item-to-room (player-room player) corpse)
           (write-crlf (player-stream player)
            (wrap (format nil "~a's corpse falls to the ground!" (mob-name mob))
-                 :bright-yellow))))
+                 :bright-yellow))
+          ;; Auto-loot if enabled
+          (when (mud.player::player-auto-loot player)
+            (let ((looted-items (mud.combat::loot-corpse corpse)))
+              (when looted-items
+                (dolist (item looted-items)
+                  (mud.inventory::add-to-inventory player item)
+                  (mud.server::maybe-announce-quest-rewards player))
+                (mud.world::remove-item-from-room (player-room player) corpse)
+                (write-crlf (player-stream player)
+                 (wrap
+                  (format nil "You automatically loot ~d item~:p from ~a's corpse: ~{~a~^, ~}"
+                          (length looted-items) (mob-name mob)
+                          (mapcar #'mud.inventory::item-name looted-items))
+                  :bright-green))
+                (mud.server::announce-to-room player
+                 (format nil "~a automatically loots ~a's corpse."
+                         (mud.ansi::wrap (mud.player::player-name player) :bright-yellow)
+                         (mob-name mob))
+                 :include-self nil))))))
       ;; Apply faction disfavor if mob belonged to a faction
       (when (mud.mob::mob-faction mob)
         (let ((faction-id (mud.mob::mob-faction mob))

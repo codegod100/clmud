@@ -959,9 +959,19 @@
         (if (null items)
             nil
             (let ((item-counts (make-hash-table :test 'equal)))
-              ;; Count items by name
+              ;; Count items by name and show corpse contents
               (dolist (item items)
-                (incf (gethash (mud.inventory::item-name item) item-counts 0)))
+                (let ((item-name (mud.inventory::item-name item)))
+                  (if (eq (mud.inventory::item-type item) :corpse)
+                      ;; For corpses, show contents
+                      (let ((corpse-items (mud.combat::get-corpse-contents item)))
+                        (if corpse-items
+                            (setf (gethash (format nil "~a (~{~a~^, ~})" item-name 
+                                                   (mapcar #'mud.inventory::item-name corpse-items)) 
+                                           item-counts) 1)
+                            (setf (gethash (format nil "~a (empty)" item-name) item-counts) 1)))
+                      ;; For regular items, just count them
+                      (incf (gethash item-name item-counts 0)))))
               ;; Build string with counts
               (with-output-to-string (out)
                 (maphash (lambda (name count)

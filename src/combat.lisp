@@ -75,6 +75,13 @@
           (copy-list (mud.mob:mob-inventory mob)))
     corpse-item))
 
+(defun get-corpse-contents (corpse)
+  "Get items from a corpse without removing them. Returns the list of items."
+  (when (and corpse (eq (mud.inventory::item-type corpse) :corpse))
+    (let* ((corpse-name (mud.inventory::item-name corpse))
+           (items (gethash corpse-name *corpse-data*)))
+      items)))
+
 (defun loot-corpse (corpse)
   "Extract items from a corpse. Returns the list of items."
   (when (and corpse (eq (mud.inventory::item-type corpse) :corpse))
