@@ -195,6 +195,11 @@ The `handle-command` function in `src/server/commands.lisp` is the main command 
 - Edit multiple files before validating
 - Use `./dev.sh validate` for every edit (it's slow)
 
+### AI Agent Development
+
+**For AI agents and automated development workflows, see the comprehensive guide:**
+- **📋 [Project Workflow Guide](project-workflow.mdc)** - Complete AI agent instructions, debugging workflows, and testing guidelines
+
 ### Fast Debugging Tools
 
 **⚠️ NEVER run `mud.lisp` for debugging - it's too slow!**
@@ -248,54 +253,10 @@ sbcl --script tools/check_parens.lisp depth src/server/core.lisp
 - Parenthesis balancing
 - Code structure validation
 
-### 🤖 AI Agent Instructions
+### AI Agent Workflow
 
-**⚠️ CRITICAL FOR AI AGENTS: After running `./dev.sh check` - DO NOT run `sbcl --script mud.lisp`!**
-
-**Common AI mistake pattern:**
-1. Run `./dev.sh check` ✅
-2. See "compilation successful" ✅  
-3. **INCORRECTLY** run `sbcl --script mud.lisp` ❌
-
-**Correct AI workflow:**
-1. Run `./dev.sh check` ✅
-2. See "compilation successful" ✅
-3. **STOP** - compilation check is complete ✅
-
-**❌ AI AGENTS - DON'T do this:**
-```bash
-./dev.sh check
-sbcl --script mud.lisp  # WRONG! Server not needed for compilation check
-```
-
-```bash
-./dev.sh balance
-sbcl --script mud.lisp  # WRONG! Server not needed for balance check
-```
-
-```bash
-sbcl --script tools/paren-fix.lisp fix file.lisp --in-place
-sbcl --script mud.lisp  # WRONG! Server not needed after fixing parentheses
-```
-
-**✅ AI AGENTS - DO this instead:**
-```bash
-./dev.sh balance
-./dev.sh check
-# DONE! No server needed for development debugging.
-```
-
-**When AI should run the server:**
-- Only when user explicitly asks to test gameplay
-- Only when user says "test the server" or "start the game"
-- Only for final integration testing after major changes
-
-**When AI should NOT run the server:**
-- After `./dev.sh check` (compilation verification)
-- After `./dev.sh balance` (parenthesis checking)  
-- After `paren-fix.lisp` (parenthesis fixing)
-- For syntax validation
-- For code structure verification
+**For AI agents and automated development workflows, see the comprehensive guide:**
+- **📋 [Project Workflow Guide](project-workflow.mdc)** - Complete AI agent instructions, debugging workflows, and testing guidelines
 
 ### Working with S-Expressions
 
@@ -352,27 +313,10 @@ quit
 ./dev.sh test
 ```
 
-## Test File Management
+### Test Management
+For comprehensive testing guidelines, test file management, and AI agent testing workflows, see:
+- **📋 [Project Workflow Guide](project-workflow.mdc)** - Complete testing guidelines and test file management
 
-**CRITICAL RULE**: **NEVER DELETE TEST FILES** - Keep all test files as documentation and regression tests!
-
-### Test File Guidelines
-
-1. **Keep All Tests**: Every test file created should be preserved, even if it has package dependency issues
-2. **Test File Locations**:
-   - Unit tests: `tests/unit/`
-   - Command tests: `tests/commands/`
-   - Integration tests: `tests/integration/`
-   - Feature tests: `tests/features/` (for new features)
-3. **Test Naming**: Use descriptive names like `test-dynamic-pricing.lisp`, `test-quest-items.lisp`
-4. **Test Documentation**: Tests serve as living documentation of how features work
-
-### Why Keep Tests?
-
-- **Regression Prevention**: Tests catch bugs when code changes
-- **Documentation**: Tests show how features are supposed to work
-- **Debugging History**: Tests record what issues we've solved
-- **Feature Examples**: Tests demonstrate proper usage of new features
 
 ## Debugging Practice
 
