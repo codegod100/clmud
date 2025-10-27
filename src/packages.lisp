@@ -278,4 +278,6 @@
            :get-vehicle-type-description
            :get-required-vehicle-type
            :get-vehicles-with-players
-           :save-game-state))
+           :save-game-state
+           :fuzzy-match-command
+           :handle-command))

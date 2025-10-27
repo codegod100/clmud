@@ -40,6 +40,25 @@
         (declare (ignore rest))
         (move-player player direction)))))
 
+(defun fuzzy-match-command (input-verb)
+  "Find the best matching command using substring matching"
+  (let ((input (string-downcase input-verb))
+        (best-match nil)
+        (best-score 0))
+    (maphash (lambda (command-name handler)
+               (declare (ignore handler))
+               (let ((score (if (string-equal input command-name)
+                                100  ; Exact match gets highest score
+                                (if (search input command-name)
+                                    (length input)  ; Substring match, score by length
+                                    0))))  ; No match
+                 (when (> score best-score)
+                   (setf best-score score)
+                   (setf best-match command-name))))
+             *command-dispatch*)
+    (when (and best-match (> best-score 0))
+      best-match)))
+
 (defun handle-command (player line)
   (multiple-value-bind (verb rest)
       (parse-command line)
@@ -49,5 +68,10 @@
       (let ((handler (gethash verb *command-dispatch*)))
         (if handler
             (funcall handler player rest)
-            (write-crlf (player-stream player)
-             (wrap "Unknown command." :bright-red))))))))
+            ;; Try fuzzy matching if exact command not found
+            (let ((fuzzy-match (fuzzy-match-command verb)))
+              (if fuzzy-match
+                  (let ((fuzzy-handler (gethash fuzzy-match *command-dispatch*)))
+                    (funcall fuzzy-handler player rest))
+                  (write-crlf (player-stream player)
+                   (wrap "Unknown command." :bright-red))))))))))
