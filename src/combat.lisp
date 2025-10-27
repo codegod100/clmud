@@ -33,7 +33,11 @@
    (make-spell :name "drain"
                :cost 8
                :damage 10
-               :description "You siphon life energy from your target."))
+               :description "You siphon life energy from your target.")
+   (make-spell :name "repair"
+               :cost 20
+               :damage 0
+               :description "Mend and restore your vehicle's armor using magical energy."))
   "List of available spells")
 
 (defun find-spell (name)
@@ -107,24 +111,42 @@
 
        ;; Apply damage/healing
        (let ((damage (spell-damage spell)))
-         (if (string-equal spell-name "heal")
-             ;; Heal self
-             (progn
-               (mud.player:modify-health caster (abs damage))
-               (values t (format nil "You cast ~a and restore ~d health!"
-                               (spell-name spell) (abs damage)) nil))
-             ;; Damage target
-             (progn
-               (mud.player:modify-health target (- damage))
-               (let ((target-name (mud.player:player-name target))
-                     (target-died (not (mud.player:player-alive-p target))))
-                 (when target-died
-                   (handle-player-death target))
-                 (if target-died
-                     (values t (format nil "You cast ~a at ~a for ~d damage! ~a has died!"
-                                     (spell-name spell) target-name damage target-name) t)
-                     (values t (format nil "You cast ~a at ~a for ~d damage!"
-                                     (spell-name spell) target-name damage) nil))))))))))
+         (cond
+           ((string-equal spell-name "heal")
+            ;; Heal self
+            (progn
+              (mud.player:modify-health caster (abs damage))
+              (values t (format nil "You cast ~a and restore ~d health!"
+                              (spell-name spell) (abs damage)) nil)))
+           ((string-equal spell-name "repair")
+            ;; Repair vehicle
+            (if (mud.player:player-vehicle caster)
+                (let* ((vehicle-item (mud.player:player-vehicle caster))
+                       (vehicle-template (mud.world::find-vehicle (mud.inventory::item-name vehicle-item))))
+                  (if vehicle-template
+                      (let ((current-armor (mud.world::vehicle-armor vehicle-template))
+                            (max-armor (mud.world::vehicle-max-armor vehicle-template)))
+                        (if (>= current-armor max-armor)
+                            (values t "Your vehicle is already in perfect condition." nil)
+                            (progn
+                              (setf (mud.world::vehicle-armor vehicle-template) max-armor)
+                              (values t (format nil "You cast ~a and fully restore your ~a's armor!"
+                                              (spell-name spell) (mud.inventory::item-name vehicle-item)) nil))))
+                      (values nil "You can't repair this vehicle." nil)))
+                (values nil "You need to be in a vehicle to cast repair." nil)))
+           (t
+            ;; Damage target
+            (progn
+              (mud.player:modify-health target (- damage))
+              (let ((target-name (mud.player:player-name target))
+                    (target-died (not (mud.player:player-alive-p target))))
+                (when target-died
+                  (handle-player-death target))
+                (if target-died
+                    (values t (format nil "You cast ~a at ~a for ~d damage! ~a has died!"
+                                    (spell-name spell) target-name damage target-name) t)
+                    (values t (format nil "You cast ~a at ~a for ~d damage!"
+                                    (spell-name spell) target-name damage) nil)))))))))))
 
 (defun get-player-stats (player)
   "Return a formatted string of player stats"

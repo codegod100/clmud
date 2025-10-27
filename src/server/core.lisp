@@ -977,7 +977,7 @@
      ((null spell-name)
       (write-crlf (player-stream caster)
        (wrap "Cast what? Usage: cast <spell> <target>" :bright-red)))
-     ((null target-name)
+     ((and (null target-name) (not (string-equal spell-name "repair")))
       (write-crlf (player-stream caster)
        (wrap "Cast at whom? Usage: cast <spell> <target>" :bright-red)))
      (t
@@ -985,9 +985,26 @@
         (if (null spell)
             (write-crlf (player-stream caster)
              (wrap (format nil "Unknown spell: ~a" spell-name) :bright-red))
-            (let ((target (find-player-by-name target-name)))
-              (cond
-               (target
+            (cond
+             ((and (string-equal spell-name "repair") (null target-name))
+              ;; Repair spell - self-targeted
+              (multiple-value-bind (success message death-occurred)
+                  (cast-spell caster caster spell-name)
+                (if success
+                    (progn
+                     (write-crlf (player-stream caster)
+                      (wrap message :bright-magenta))
+                     (announce-to-room caster
+                      (format nil "~a casts ~a!"
+                              (wrap (player-name caster) :bright-yellow)
+                              spell-name)
+                      :include-self nil))
+                    (write-crlf (player-stream caster)
+                     (wrap message :bright-red)))))
+             (t
+              (let ((target (find-player-by-name target-name)))
+                (cond
+                 (target
                 (if (eq (player-room caster) (player-room target))
                     (multiple-value-bind (success message death-occurred)
                         (cast-spell caster target spell-name)
@@ -1031,15 +1048,15 @@
                       (format nil "~a is not in this room."
                               (player-name target))
                       :bright-red))))
-               (t
-                (let ((mob (find-mob-in-room (player-room caster) target-name)))
-                  (if mob
-                      (cast-spell-at-mob caster mob spell)
-                      (write-crlf (player-stream caster)
-                       (wrap
-                        (format nil "There is no ~a here to target."
-                                target-name)
-                        :bright-red)))))))))))))
+                 (t
+                  (let ((mob (find-mob-in-room (player-room caster) target-name)))
+                    (if mob
+                        (cast-spell-at-mob caster mob spell)
+                        (write-crlf (player-stream caster)
+                         (wrap
+                          (format nil "There is no ~a here to target."
+                                  target-name)
+                          :bright-red)))))))))))))))
 
 
 (defun parse-command (line)

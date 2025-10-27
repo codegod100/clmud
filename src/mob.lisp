@@ -375,9 +375,8 @@
                                   ;; Pedestrian exits - accessible to all mobs
                                   ((eq exit-type :pedestrian)
                                    (cdr rest-of-entry))
-                                  ;; Ground exits - accessible to mobs with ground vehicles
-                                  ((and (eq exit-type :ground) vehicle-type
-                                        (string-equal vehicle-type "motorcycle"))
+                                  ;; Ground exits - accessible to all mobs
+                                  ((eq exit-type :ground)
                                    (cdr rest-of-entry))
                                   ;; Other vehicle types - only if mob has matching vehicle
                                   ((and vehicle-type (string-equal vehicle-type (string-downcase (symbol-name exit-type))))

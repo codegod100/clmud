@@ -834,10 +834,9 @@
                 ((eq exit-type :air)
                  (when (and vehicle-type (eq vehicle-type :air))
                    (cdr rest-of-entry)))
-                ;; Ground exits - only accessible with ground vehicles
+                ;; Ground exits - accessible to all vehicles and on foot
                 ((eq exit-type :ground)
-                 (when (and vehicle-type (eq vehicle-type :ground))
-                   (cdr rest-of-entry)))
+                 (cdr rest-of-entry))
                 ;; Other typed exits - vehicle must match
                 (t
                  (when (and vehicle-type (eq vehicle-type exit-type))
