@@ -15,8 +15,7 @@
 (defparameter *persistence-running* nil)
 (defparameter *persistence-lock* (make-mutex :name "persistence-lock"))
 
-;; Mob movement system
-(defparameter *mob-movement-interval* 10) ; Check every 10 seconds
+;; Mob movement system - use global tick interval
 (defparameter *mob-movement-thread* nil)
 (defparameter *mob-movement-running* nil)
 
@@ -144,7 +143,7 @@
   (loop
     (unless *mob-movement-running*
       (return))
-    (sleep *mob-movement-interval*)
+    (sleep mud.constants::*tick-interval*)
     (unless *mob-movement-running*
       (return))
     (handler-case
@@ -156,7 +155,9 @@
                 (destructuring-bind (mob old-room new-room) movement
                   (announce-mob-movement mob old-room new-room)))))
           ;; Process mob combat
-          (mud.mob::process-all-mob-combat))
+          (mud.mob::process-all-mob-combat)
+          ;; Process tick events
+          (mud.events::process-tick-events))
       (error (err)
         (server-log "Error in mob movement loop: ~a" err)))))
 

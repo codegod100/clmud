@@ -31,6 +31,10 @@
 (defparameter *room-mobs* (make-hash-table :test #'eq)
   "Hash table of room-id -> list of mob instances in that room")
 
+;; Global autofight state - tracks which players should autofight on next tick
+(defparameter *autofight-players* (make-hash-table :test #'eq)
+  "Hash table of player -> mob they should autofight against")
+
 (defun define-mob-template (id name description max-health damage armor xp-reward loot-table &key (aggressive nil) (move-interval-min 30) (move-interval-max 120) (quest-giver nil) (vehicle nil) (faction nil))
   "Define a mob template"
   (setf (gethash id *mob-templates*)
@@ -466,12 +470,20 @@
   "Start combat between mob and target"
   (setf (mob-in-combat mob) t)
   (setf (mob-combat-target mob) target)
+  ;; If target is a player with autofight enabled, add to autofight queue
+  (when (and (mud.player::player-p target)
+             (mud.player::player-auto-fight target))
+    (add-autofight-player target mob))
   (setf (mob-last-attack-time mob) (get-universal-time)))
 
 (defun end-combat (mob)
   "End combat for a mob"
-  (setf (mob-in-combat mob) nil)
-  (setf (mob-combat-target mob) nil))
+  (let ((target (mob-combat-target mob)))
+    ;; Remove player from autofight queue if they were in it
+    (when (mud.player::player-p target)
+      (remove-autofight-player target))
+    (setf (mob-in-combat mob) nil)
+    (setf (mob-combat-target mob) nil)))
 
 (defun mob-in-combat-p (mob)
   "Check if a mob is in combat"
@@ -494,6 +506,7 @@
               (>= (- (get-universal-time) (mob-last-attack-time mob))
                   (mob-attack-interval mob))))))
 
+
 (defun process-mob-combat-attack (mob)
   "Process a combat attack for a mob"
   (when (should-mob-attack-in-combat mob)
@@ -501,13 +514,28 @@
       (setf (mob-last-attack-time mob) (get-universal-time))
       (if (mud.player::player-p target)
           ;; Attack player
-          (progn
-            (mud.server::handle-mob-attack-player mob target)
-            ;; If player has auto-fight enabled, automatically counter-attack
-            (when (mud.player::player-auto-fight target)
-              (mud.server::auto-fight-counter-attack target mob)))
+          (mud.server::handle-mob-attack-player mob target)
           ;; Attack other mob (not implemented yet)
           nil))))
+
+(defun process-autofight-actions ()
+  "Process all autofight actions for players in combat"
+  (maphash (lambda (player mob)
+             (when (and (mud.player::player-alive-p player)
+                        (mud.mob::mob-alive-p mob)
+                        (mud.player::player-auto-fight player)
+                        (eq (mud.player::player-room player) (mud.mob::mob-current-room mob)))
+               ;; Player should autofight - trigger counter-attack
+               (mud.server::auto-fight-counter-attack player mob)))
+           *autofight-players*))
+
+(defun add-autofight-player (player mob)
+  "Add a player to the autofight queue"
+  (setf (gethash player *autofight-players*) mob))
+
+(defun remove-autofight-player (player)
+  "Remove a player from the autofight queue"
+  (remhash player *autofight-players*))
 
 (defun process-all-mob-combat ()
   "Process combat for all mobs in the game"
@@ -517,8 +545,11 @@
                (when (and mobs (listp mobs)) ; Check if mobs is not nil and is a list
                  (dolist (mob mobs)
                    (when (mob-in-combat-p mob)
+                     ;; Process regular combat attacks
                      (let ((action (process-mob-combat-attack mob)))
                        (when action
                          (push action combat-actions)))))))
              *room-mobs*)
+    ;; Process autofight actions for all players
+    (process-autofight-actions)
     combat-actions))

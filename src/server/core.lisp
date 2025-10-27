@@ -914,11 +914,14 @@
            (format nil "~a has been slain by ~a!"
                    (wrap (player-name player) :bright-red) (mob-name mob))
            :include-self nil)
+          (mud.mob::end-combat mob) ; End combat when player dies
           (handle-player-death player)
           (write-crlf (player-stream player)
            (wrap "You awaken in the graveyard, wounded but alive..."
             :bright-black))
-          (send-room-overview player))))))
+          (send-room-overview player))
+        ;; Autofight will be handled by the tick system
+        ))))
 
 
 (defun split-on-whitespace (string)
@@ -955,6 +958,10 @@
       :bright-red)))
    (t (modify-mana caster (- (spell-cost spell)))
     (let ((damage (spell-damage spell)))
+      ;; Start combat if not already in combat
+      (unless (mud.mob::mob-in-combat-p mob)
+        (mud.mob::start-combat mob caster))
+      
       (write-crlf (player-stream caster)
        (wrap
         (format nil "You cast ~a at ~a for ~d damage!" (spell-name spell)

@@ -1,5 +1,43 @@
 (require :sb-bsd-sockets)
 
+(defpackage :mud.constants
+  (:use :cl)
+  (:export :*tick-interval*))
+
+(defpackage :mud.events
+  (:use :cl)
+  (:export :*tick-handlers*
+           :register-tick-handler
+           :process-tick-events))
+
+(in-package :mud.constants)
+
+;; Global tick interval for the MUD system (in seconds)
+(defparameter *tick-interval* 5
+  "The base tick interval for the MUD system in seconds. This controls:
+   - Mob movement frequency
+   - Combat round frequency  
+   - Autofight timing
+   - Other periodic game events")
+
+(in-package :mud.events)
+
+;; Global tick event handlers
+(defparameter *tick-handlers* nil
+  "List of functions to call on each tick")
+
+(defun register-tick-handler (handler)
+  "Register a function to be called on each tick"
+  (push handler *tick-handlers*))
+
+(defun process-tick-events ()
+  "Process all registered tick event handlers"
+  (dolist (handler *tick-handlers*)
+    (handler-case
+        (funcall handler)
+      (error (e)
+        (format t "Error in tick handler: ~a~%" e)))))
+
 (defpackage :mud.ansi
   (:use :cl)
   (:export :wrap :code :strip :gradient))
@@ -142,6 +180,7 @@
 
 (defpackage :mud.mob
   (:use :cl)
+  (:import-from :mud.constants :*tick-interval*)
   (:export :define-mob-template
            :find-mob-template
            :spawn-mob
