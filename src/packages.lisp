@@ -34,17 +34,6 @@
            :vehicle-description
            :vehicle-max-armor))
 
-(defpackage :mud.server
-  (:use :cl)
-  (:export :handle-aggressive-mob-attack
-           :handle-mob-attack-player
-           :announce-to-room
-           :send-room-overview
-           :move-player
-           :current-room
-           :write-crlf
-           :get-vehicle-type-description
-           :get-required-vehicle-type))
 
 (defpackage :mud.player
   (:use :cl)
@@ -199,7 +188,6 @@
 
 (defpackage :mud.server
   (:use :cl
-        :sb-bsd-sockets
         :sb-thread
         :mud.ansi
         :mud.world
@@ -207,9 +195,18 @@
         :mud.inventory
         :mud.mob
         :mud.combat
-    :mud.quest
-    :mud.merchant)
+        :mud.quest
+        :mud.merchant)
   (:shadow :log)
   (:export :start :stop :await
+           :handle-aggressive-mob-attack
+           :handle-mob-attack-player
+           :announce-to-room
+           :send-room-overview
+           :move-player
+           :current-room
+           :write-crlf
+           :get-vehicle-type-description
+           :get-required-vehicle-type
            :get-vehicles-with-players
            :save-game-state))

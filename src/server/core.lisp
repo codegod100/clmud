@@ -887,7 +887,17 @@
 
 (defun split-on-whitespace (string)
   "Split STRING on whitespace"
-  (uiop:split-string string :separator '(#\Space #\Tab #\Newline)))
+  (let ((result '())
+        (current '()))
+    (loop for char across string
+          do (if (member char '(#\Space #\Tab #\Newline))
+                 (when current
+                   (push (coerce (nreverse current) 'string) result)
+                   (setf current '()))
+                 (push char current)))
+    (when current
+      (push (coerce (nreverse current) 'string) result))
+    (nreverse result)))
 
 (defun cast-spell-at-mob (caster mob spell)
   "Cast SPELL from CASTER at MOB, handling mana, damage, and outcomes."
