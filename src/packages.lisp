@@ -1,3 +1,5 @@
+(require :sb-bsd-sockets)
+
 (defpackage :mud.ansi
   (:use :cl)
   (:export :wrap :code :strip :gradient))
@@ -188,6 +190,7 @@
 
 (defpackage :mud.server
   (:use :cl
+        :sb-bsd-sockets
         :sb-thread
         :mud.ansi
         :mud.world
