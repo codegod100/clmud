@@ -37,7 +37,8 @@
   (let ((path (state-file-path)))
     (with-mutex (*persistence-lock*)
       (handler-case
-          (let ((snapshots (collect-player-snapshots)))
+          (let ((snapshots (collect-player-snapshots))
+                (current-tick (mud.world::get-global-tick)))
             (ensure-directories-exist path)
             (with-open-file (out path :direction :output :if-exists :supersede
                                   :if-does-not-exist :create)
@@ -45,12 +46,13 @@
                     (*print-escape* t)
                     (*package* (find-package :cl)))
                 (format out ";; Saved at ~a (~(~a~))~%" (get-universal-time) reason)
+                (format out ";; Global tick: ~d~%" current-tick)
                 (write snapshots :stream out :circle nil)
                 (terpri out)
                 (finish-output out)))
             (let ((count (length snapshots)))
               (when (not (eq reason :periodic))
-                (server-log "Saved ~d player~:p to ~a (~(~a~))" count path reason))
+                (server-log "Saved ~d player~:p to ~a (~(~a~)) at tick ~d" count path reason current-tick))
               count))
         (error (err)
           (server-log "Failed to save game state (~(~a~)): ~a" reason err)
@@ -67,7 +69,25 @@
     (if (and path (probe-file path))
         (handler-case
             (with-open-file (in path :direction :input)
-              (let ((*read-eval* nil))
+              (let ((*read-eval* nil)
+                    (saved-tick nil))
+                ;; Read header comments to extract tick
+                (loop for line = (read-line in nil nil)
+                      while line
+                      do (when (and (<= 15 (length line))
+                                    (let ((pos (search ";; Global tick:" line)))
+                                      (and pos (= pos 0)))
+                                    (not (string= line "")))
+                           (let ((tick-str (string-trim " " (subseq line 15))))
+                             (setf saved-tick (parse-integer tick-str :junk-allowed t))))
+                      until (or (null line) (not (and (<= 2 (length line))
+                                                      (let ((pos (search ";;" line)))
+                                                        (and pos (= pos 0)))))))
+                ;; Restore global tick if found (regardless of player data)
+                (when saved-tick
+                  (setf mud.world::*global-tick* saved-tick)
+                  (server-log "Restored global tick to ~d" saved-tick))
+                ;; Read the actual data
                 (let ((data (read in nil nil)))
                   (if (listp data)
                       (let ((restored (restore-player-snapshots data
