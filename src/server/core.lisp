@@ -371,7 +371,7 @@
     (if room
         (let ((stream (player-stream player)))
           (write-crlf stream
-           (wrap (format nil "~a" (room-name room)) :bold :bright-cyan))
+           (wrap (format nil "~a" (mud.world:get-time-based-name room)) :bold :bright-cyan))
           (if vehicle
               ;; Player is in a vehicle - show window view
               (write-crlf stream 

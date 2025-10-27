@@ -7,7 +7,8 @@
   exits
   (items nil :type list)
   (facets nil :type list)  ; List of (name . description) pairs for examinable details
-  (time-descriptions nil :type list))  ; List of (time-of-day . description) pairs for time-based descriptions
+  (time-descriptions nil :type list)  ; List of (time-of-day . description) pairs for time-based descriptions
+  (time-names nil :type list))  ; List of (time-of-day . name) pairs for time-based names
 
 (defparameter *rooms* (make-hash-table :test #'eq))
 (defparameter *starting-room* 'village-square)
@@ -101,6 +102,17 @@
               (room-description room)))
         (room-description room))))
 
+(defun get-time-based-name (room)
+  "Get room name based on current time of day"
+  (let ((time-of-day (get-time-of-day))
+        (time-names (room-time-names room)))
+    (if time-names
+        (let ((time-name (assoc time-of-day time-names)))
+          (if time-name
+              (cdr time-name)
+              (room-name room)))
+        (room-name room))))
+
 (defun add-time-description (room-id time-of-day description)
   "Add a time-based description to a room"
   (let ((room (find-room room-id)))
@@ -111,6 +123,17 @@
             (setf (room-time-descriptions room)
                   (cons (cons time-of-day description)
                         (room-time-descriptions room))))))))
+
+(defun add-time-name (room-id time-of-day name)
+  "Add a time-based name to a room"
+  (let ((room (find-room room-id)))
+    (when room
+      (let ((existing (assoc time-of-day (room-time-names room))))
+        (if existing
+            (setf (cdr existing) name)
+            (setf (room-time-names room)
+                  (cons (cons time-of-day name)
+                        (room-time-names room))))))))
 
 (defun define-room-with-time (id name description exits &optional facets time-descriptions)
   "Define a room with time-based descriptions"
@@ -338,6 +361,14 @@
   (add-time-description 'village-square :night
                         "Cobblestone paths converge beneath an [ancient oak], its leaves rustling in the cool night air. [Lanterns] burn brightly, their golden light creating pools of warmth in the darkness, while stars twinkle overhead.")
 
+  ;; Village Square time-based names
+  (add-time-name 'village-square :dawn "Dawn Square")
+  (add-time-name 'village-square :morning "Morning Square")
+  (add-time-name 'village-square :afternoon "Village Square")
+  (add-time-name 'village-square :evening "Evening Square")
+  (add-time-name 'village-square :dusk "Dusk Square")
+  (add-time-name 'village-square :night "Moonlit Square")
+
   (add-time-description 'tavern-common-room :dawn
                         "The tavern is quiet in the early morning, with only the crackling [hearth] providing warmth and light. The scent of fresh bread and brewing coffee begins to fill the air as the innkeeper prepares for the day.")
   
@@ -355,6 +386,14 @@
   
   (add-time-description 'tavern-common-room :night
                         "The tavern is alive with nighttime revelry, warm lamplight dancing on polished oak tables. The crackling [hearth] casts flickering shadows while the [weathered map] seems to glow with mysterious energy in the dim light.")
+
+  ;; Tavern time-based names
+  (add-time-name 'tavern-common-room :dawn "The Bronze Badger (Quiet)")
+  (add-time-name 'tavern-common-room :morning "The Bronze Badger (Breakfast)")
+  (add-time-name 'tavern-common-room :afternoon "The Bronze Badger (Lunch)")
+  (add-time-name 'tavern-common-room :evening "The Bronze Badger (Dinner)")
+  (add-time-name 'tavern-common-room :dusk "The Bronze Badger (Evening)")
+  (add-time-name 'tavern-common-room :night "The Bronze Badger (Night)")
 
   (add-time-description 'whispering-wood :dawn
                         "Towering pines stand silent in the misty dawn, their needles glistening with morning dew. An [owl] perches on a branch, its eyes reflecting the first light. A [standing stone] emerges from the morning fog, ancient and mysterious.")
@@ -467,6 +506,14 @@
   
   (add-time-description 'market-stalls :night
                         "Canopies ripple in the breeze as merchants shutter their stalls. The lingering aroma of [roasted chestnuts] and fresh parchment fills the air. A [notice board] displays various announcements, mysterious in the moonlight.")
+
+  ;; Market Stalls time-based names
+  (add-time-name 'market-stalls :dawn "Dawn Market")
+  (add-time-name 'market-stalls :morning "Opening Market")
+  (add-time-name 'market-stalls :afternoon "Busy Market")
+  (add-time-name 'market-stalls :evening "Closing Market")
+  (add-time-name 'market-stalls :dusk "Evening Market")
+  (add-time-name 'market-stalls :night "Closed Market")
 
   ;; Riverbank time descriptions
   (add-time-description 'riverbank :dawn

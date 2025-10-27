@@ -44,7 +44,9 @@
            :is-nighttime-p
            :get-time-based-description
            :add-time-description
-           :define-room-with-time))
+           :define-room-with-time
+           :get-time-based-name
+           :add-time-name))
 
 
 (defpackage :mud.player
