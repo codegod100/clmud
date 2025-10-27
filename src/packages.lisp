@@ -34,7 +34,17 @@
            :vehicle-name
            :vehicle-type
            :vehicle-description
-           :vehicle-max-armor))
+           :vehicle-max-armor
+           :get-world-time
+           :set-world-time
+           :advance-world-time
+           :get-time-of-day
+           :format-world-time
+           :is-daytime-p
+           :is-nighttime-p
+           :get-time-based-description
+           :add-time-description
+           :define-room-with-time))
 
 
 (defpackage :mud.player

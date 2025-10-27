@@ -8,3 +8,4 @@
 (load (merge-pathnames "trade.lisp" *load-truename*))
 (load (merge-pathnames "vehicle.lisp" *load-truename*))
 (load (merge-pathnames "player.lisp" *load-truename*))
+(load (merge-pathnames "time.lisp" *load-truename*))

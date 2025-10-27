@@ -377,9 +377,9 @@
               (write-crlf stream 
                (format nil "Out the window of your ~a you see: ~a" 
                        (mud.inventory:item-name vehicle)
-                       (colorize-facets (room-description room))))
+                       (colorize-facets (mud.world:get-time-based-description room))))
               ;; Player is on foot - show normal room description
-              (write-crlf stream (colorize-facets (room-description room))))
+              (write-crlf stream (colorize-facets (mud.world:get-time-based-description room))))
           (write-crlf stream "")
           (with-mutex (*clients-lock*)
            (let ((others

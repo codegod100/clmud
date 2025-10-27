@@ -129,7 +129,7 @@
   (write-crlf (player-stream player)
    "  Quests: quest, quest-reset <quest>, status")
   (write-crlf (player-stream player)
-   "  Other: help, quit, save, . (repeat last command), locate <mob>, suicide (test death)")
+   "  Other: help, quit, save, time [HH:MM], . (repeat last command), locate <mob>, suicide (test death)")
   )
 
 (define-command (("save") command-save) (player rest)

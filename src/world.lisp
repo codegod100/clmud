@@ -6,7 +6,8 @@
   description
   exits
   (items nil :type list)
-  (facets nil :type list))  ; List of (name . description) pairs for examinable details
+  (facets nil :type list)  ; List of (name . description) pairs for examinable details
+  (time-descriptions nil :type list))  ; List of (time-of-day . description) pairs for time-based descriptions
 
 (defparameter *rooms* (make-hash-table :test #'eq))
 (defparameter *starting-room* 'village-square)
@@ -38,6 +39,84 @@
 (defun find-vehicle (name)
   "Find a vehicle by name (case-insensitive)"
   (gethash (string-downcase name) *vehicles*))
+
+;;; World Time System
+(defparameter *world-time* 0.0
+  "Current world time in hours (0.0 = sunrise, 12.0 = sunset)")
+(defparameter *day-duration* 20.0
+  "Duration of a full day cycle in minutes")
+(defparameter *sunrise-time* 6.0
+  "Time of sunrise in hours")
+(defparameter *sunset-time* 18.0
+  "Time of sunset in hours")
+
+(defun get-world-time ()
+  "Get current world time in hours"
+  *world-time*)
+
+(defun set-world-time (time)
+  "Set world time in hours (0.0-24.0)"
+  (setf *world-time* (mod time 24.0)))
+
+(defun advance-world-time (minutes)
+  "Advance world time by specified minutes"
+  (setf *world-time* (mod (+ *world-time* (/ minutes 60.0)) 24.0)))
+
+(defun get-time-of-day ()
+  "Get time of day as keyword (:dawn, :morning, :afternoon, :evening, :night)"
+  (let ((time *world-time*))
+    (cond
+      ((< time 6.0) :night)
+      ((< time 9.0) :dawn)
+      ((< time 12.0) :morning)
+      ((< time 15.0) :afternoon)
+      ((< time 18.0) :evening)
+      ((< time 21.0) :dusk)
+      (t :night))))
+
+(defun format-world-time ()
+  "Format world time as readable string"
+  (let* ((hours (floor *world-time*))
+         (minutes (floor (* 60 (mod *world-time* 1.0))))
+         (time-of-day (get-time-of-day)))
+    (format nil "~2,'0d:~2,'0d (~a)" hours minutes time-of-day)))
+
+(defun is-daytime-p ()
+  "Check if it's currently daytime"
+  (let ((time *world-time*))
+    (and (>= time *sunrise-time*) (< time *sunset-time*))))
+
+(defun is-nighttime-p ()
+  "Check if it's currently nighttime"
+  (not (is-daytime-p)))
+
+(defun get-time-based-description (room)
+  "Get room description based on current time of day"
+  (let ((time-of-day (get-time-of-day))
+        (time-descriptions (room-time-descriptions room)))
+    (if time-descriptions
+        (let ((time-desc (assoc time-of-day time-descriptions)))
+          (if time-desc
+              (cdr time-desc)
+              (room-description room)))
+        (room-description room))))
+
+(defun add-time-description (room-id time-of-day description)
+  "Add a time-based description to a room"
+  (let ((room (find-room room-id)))
+    (when room
+      (let ((existing (assoc time-of-day (room-time-descriptions room))))
+        (if existing
+            (setf (cdr existing) description)
+            (setf (room-time-descriptions room)
+                  (cons (cons time-of-day description)
+                        (room-time-descriptions room))))))))
+
+(defun define-room-with-time (id name description exits &optional facets time-descriptions)
+  "Define a room with time-based descriptions"
+  (setf (gethash id *rooms*)
+        (make-room :id id :name name :description description :exits exits 
+                   :facets facets :time-descriptions time-descriptions)))
 
 (defun define-room (id name description exits &optional facets)
   (setf (gethash id *rooms*)
@@ -238,7 +317,342 @@
     (add-item-to-room 'riverbank skiff-item)
     (add-item-to-room 'graveyard ufo-item)
     (add-item-to-room 'village-garden apple-item)
-    (add-item-to-room 'ancient-grove treasure-map-item)))
+    (add-item-to-room 'ancient-grove treasure-map-item))
+
+  ;; Add time-based descriptions to key rooms
+  (add-time-description 'village-square :dawn
+                        "Cobblestone paths converge beneath an [ancient oak], its leaves glistening with morning dew. [Lanterns] still glow softly as the first rays of sunlight filter through the branches, casting long shadows across the square.")
+  
+  (add-time-description 'village-square :morning
+                        "Cobblestone paths converge beneath an [ancient oak], its leaves rustling in the morning breeze. [Lanterns] have been extinguished as villagers begin their daily activities, the square bustling with life and energy.")
+  
+  (add-time-description 'village-square :afternoon
+                        "Cobblestone paths converge beneath an [ancient oak], its leaves providing welcome shade from the afternoon sun. [Lanterns] stand ready for evening, while merchants and travelers move about their business.")
+  
+  (add-time-description 'village-square :evening
+                        "Cobblestone paths converge beneath an [ancient oak], its leaves whispering tales of heroes past. [Lanterns] begin to glow as the sun sets, casting warm golden halos in the gathering dusk.")
+  
+  (add-time-description 'village-square :dusk
+                        "Cobblestone paths converge beneath an [ancient oak], its leaves silhouetted against the darkening sky. [Lanterns] sway gently, casting dancing shadows as night falls over the village.")
+  
+  (add-time-description 'village-square :night
+                        "Cobblestone paths converge beneath an [ancient oak], its leaves rustling in the cool night air. [Lanterns] burn brightly, their golden light creating pools of warmth in the darkness, while stars twinkle overhead.")
+
+  (add-time-description 'tavern-common-room :dawn
+                        "The tavern is quiet in the early morning, with only the crackling [hearth] providing warmth and light. The scent of fresh bread and brewing coffee begins to fill the air as the innkeeper prepares for the day.")
+  
+  (add-time-description 'tavern-common-room :morning
+                        "Warm lamplight spills over polished oak tables as villagers gather for breakfast. The scent of spiced cider mingles with the aroma of fresh pastries. A crackling [hearth] warms the room while the [weathered map] catches the morning light.")
+  
+  (add-time-description 'tavern-common-room :afternoon
+                        "The tavern is alive with midday activity, warm lamplight illuminating polished oak tables. Travelers share stories over hearty meals while the crackling [hearth] provides a cozy atmosphere. The [weathered map] on the wall shows the day's adventures.")
+  
+  (add-time-description 'tavern-common-room :evening
+                        "Warm lamplight spills over polished oak tables as evening patrons gather. The scent of spiced cider mingles with distant lute music while the crackling [hearth] creates a welcoming glow. The [weathered map] seems to hold secrets in the flickering light.")
+  
+  (add-time-description 'tavern-common-room :dusk
+                        "The tavern grows more intimate as dusk falls, warm lamplight creating pools of golden light on polished oak tables. The crackling [hearth] becomes the heart of the room, while the [weathered map] fades into shadow.")
+  
+  (add-time-description 'tavern-common-room :night
+                        "The tavern is alive with nighttime revelry, warm lamplight dancing on polished oak tables. The crackling [hearth] casts flickering shadows while the [weathered map] seems to glow with mysterious energy in the dim light.")
+
+  (add-time-description 'whispering-wood :dawn
+                        "Towering pines stand silent in the misty dawn, their needles glistening with morning dew. An [owl] perches on a branch, its eyes reflecting the first light. A [standing stone] emerges from the morning fog, ancient and mysterious.")
+  
+  (add-time-description 'whispering-wood :morning
+                        "Towering pines murmur softly in the morning breeze, their needles shimmering with dew. Sunlight filters through the canopy, creating dancing patterns on the forest floor. An [owl] watches from the shadows while a [standing stone] catches the morning light.")
+  
+  (add-time-description 'whispering-wood :afternoon
+                        "Towering pines provide cool shade from the afternoon sun, their needles rustling in the warm breeze. Dappled sunlight creates a mosaic on the forest floor. An [owl] dozes in the branches while the [standing stone] stands sentinel in the filtered light.")
+  
+  (add-time-description 'whispering-wood :evening
+                        "Towering pines whisper secrets as evening approaches, their needles catching the last golden rays. An [owl] stirs from its daytime rest, preparing for the night. The [standing stone] seems to glow with ancient power as shadows lengthen.")
+  
+  (add-time-description 'whispering-wood :dusk
+                        "Towering pines become dark silhouettes against the fading sky, their needles rustling with evening secrets. An [owl] hoots softly, heralding the coming night. The [standing stone] stands like a guardian in the gathering darkness.")
+  
+  (add-time-description 'whispering-wood :night
+                        "Towering pines murmur secrets overhead, their needles shimmering with starlight. An [owl] hoots mysteriously in the darkness, beckoning the brave. The [standing stone] glows faintly with otherworldly energy, covered in moss and ancient power.")
+
+  (add-time-description 'graveyard :dawn
+                        "Ancient [tombstones] emerge from the morning mist, their inscriptions barely visible in the pale light. The air is still and heavy with dew. A faint [ethereal glow] pulses softly, marking the boundary between night and day.")
+  
+  (add-time-description 'graveyard :morning
+                        "Ancient [tombstones] stand in the morning light, their inscriptions worn by time but visible in the gentle rays. The air is fresh and still. A faint [ethereal glow] shimmers softly, a reminder of the mysteries that lie beyond.")
+  
+  (add-time-description 'graveyard :afternoon
+                        "Ancient [tombstones] cast long shadows in the afternoon sun, their inscriptions clear in the bright light. The air is warm and still. A faint [ethereal glow] is barely visible in the daylight, but its presence is felt.")
+  
+  (add-time-description 'graveyard :evening
+                        "Ancient [tombstones] are bathed in golden light as the sun sets, their inscriptions glowing with warmth. The air grows still and heavy. A faint [ethereal glow] begins to strengthen as day turns to night.")
+  
+  (add-time-description 'graveyard :dusk
+                        "Ancient [tombstones] become dark silhouettes against the evening sky, their inscriptions fading into shadow. The air is still and heavy with the weight of countless souls. A faint [ethereal glow] pulses more strongly in the gathering darkness.")
+  
+  (add-time-description 'graveyard :night
+                        "Ancient [tombstones] lean in the mist, their inscriptions worn by time. The air is still, heavy with the weight of countless souls who have passed through this veil. A faint [ethereal glow] marks the boundary between life and death, pulsing with otherworldly energy.")
+
+  ;; Tavern Loft time descriptions
+  (add-time-description 'tavern-loft :dawn
+                        "The loft is peaceful in the early morning, with only the soft creaking of floorboards below. A narrow [window] reveals the first light of dawn filtering through the village, casting gentle shadows across the straw mattresses.")
+  
+  (add-time-description 'tavern-loft :morning
+                        "Morning light streams through the narrow [window], illuminating dust motes dancing in the air. The loft is quiet and peaceful, with soft straw mattresses inviting rest after a long night.")
+  
+  (add-time-description 'tavern-loft :afternoon
+                        "The loft is warm and comfortable in the afternoon light. A narrow [window] offers a view of the bustling village below, while the straw mattresses provide a quiet retreat from the day's activities.")
+  
+  (add-time-description 'tavern-loft :evening
+                        "As evening approaches, the loft grows dim and cozy. A narrow [window] frames the setting sun, casting long shadows across the room. The straw mattresses look inviting for weary travelers.")
+  
+  (add-time-description 'tavern-loft :dusk
+                        "The loft grows intimate as dusk falls, with the narrow [window] showing the village lights beginning to twinkle. The straw mattresses are ready for those seeking rest after a day's adventures.")
+  
+  (add-time-description 'tavern-loft :night
+                        "The loft is quiet and peaceful in the darkness, with only the narrow [window] revealing the silver glow of the moonlit treeline beyond the village walls. The straw mattresses offer comfort for the night.")
+
+  ;; Moonlit Lane time descriptions
+  (add-time-description 'moonlit-lane :dawn
+                        "The lane is quiet in the early morning, with [ivy-clad cottages] still dark and sleeping. The first light of dawn begins to illuminate the [forest archway] ahead, while the dirt road to the north waits for travelers.")
+  
+  (add-time-description 'moonlit-lane :morning
+                        "The lane comes alive with morning activity, [ivy-clad cottages] showing signs of life as villagers begin their day. The [forest archway] catches the morning light, and the dirt road to the north beckons to adventurers.")
+  
+  (add-time-description 'moonlit-lane :afternoon
+                        "The lane is warm and pleasant in the afternoon sun, with [ivy-clad cottages] basking in the light. The [forest archway] provides welcome shade, while the dirt road to the north is busy with travelers.")
+  
+  (add-time-description 'moonlit-lane :evening
+                        "As evening approaches, the lane grows more mysterious, with [ivy-clad cottages] casting long shadows. The [forest archway] seems to beckon with ancient secrets, while the dirt road to the north fades into the distance.")
+  
+  (add-time-description 'moonlit-lane :dusk
+                        "The lane becomes atmospheric as dusk falls, with [ivy-clad cottages] silhouetted against the darkening sky. The [forest archway] grows more foreboding, and the dirt road to the north disappears into the gathering darkness.")
+  
+  (add-time-description 'moonlit-lane :night
+                        "A narrow lane stretches eastward, flanked by [ivy-clad cottages]. Fireflies dance in the night air, drawing the eye toward the shadowed [forest archway]. A dirt road branches off to the north, mysterious in the moonlight.")
+
+  ;; Ancient Grove time descriptions
+  (add-time-description 'ancient-grove :dawn
+                        "The grove is shrouded in morning mist, with [standing stones] emerging like ancient sentinels from the fog. The air hums with primal power as the first light touches the deep claw marks on the surrounding trees.")
+  
+  (add-time-description 'ancient-grove :morning
+                        "Morning light filters into the hidden grove, illuminating the ring of [standing stones] with golden rays. The air hums with primal power, and the deep claw marks on the surrounding trees are clearly visible in the daylight.")
+  
+  (add-time-description 'ancient-grove :afternoon
+                        "The grove is warm and alive in the afternoon sun, with [standing stones] casting intricate shadows. The air hums with primal power, and the deep claw marks on the surrounding trees tell tales of the Forest Guardian's presence.")
+  
+  (add-time-description 'ancient-grove :evening
+                        "As evening approaches, the grove grows more mystical, with [standing stones] catching the last golden rays. The air hums with primal power, and the deep claw marks on the surrounding trees seem to glow with ancient energy.")
+  
+  (add-time-description 'ancient-grove :dusk
+                        "The grove becomes mysterious as dusk falls, with [standing stones] silhouetted against the darkening sky. The air hums with primal power, and the deep claw marks on the surrounding trees are barely visible in the fading light.")
+  
+  (add-time-description 'ancient-grove :night
+                        "Moonlight spills into this hidden grove, illuminating a ring of [standing stones]. The air hums with primal power, and deep claw marks score the surrounding trees. A hush falls here -- the domain of the Forest Guardian.")
+
+  ;; Market Stalls time descriptions
+  (add-time-description 'market-stalls :dawn
+                        "The market is quiet in the early morning, with canopies still closed and merchants preparing for the day. The lingering aroma of [roasted chestnuts] from yesterday mingles with the fresh morning air, while the [notice board] awaits new announcements.")
+  
+  (add-time-description 'market-stalls :morning
+                        "The market comes alive with morning activity, canopies opening as merchants set up their stalls. The aroma of fresh [roasted chestnuts] fills the air, and the [notice board] displays the day's announcements for eager adventurers.")
+  
+  (add-time-description 'market-stalls :afternoon
+                        "The market is bustling with midday activity, canopies providing welcome shade from the afternoon sun. The aroma of [roasted chestnuts] is strong, and the [notice board] is busy with merchants and travelers checking for opportunities.")
+  
+  (add-time-description 'market-stalls :evening
+                        "As evening approaches, the market begins to wind down, with canopies starting to close. The aroma of [roasted chestnuts] grows stronger as merchants prepare to leave, while the [notice board] shows the day's final announcements.")
+  
+  (add-time-description 'market-stalls :dusk
+                        "The market grows quiet as dusk falls, with most canopies closed and merchants packing their wares. The lingering aroma of [roasted chestnuts] and fresh parchment fills the air, while the [notice board] displays various announcements in the fading light.")
+  
+  (add-time-description 'market-stalls :night
+                        "Canopies ripple in the breeze as merchants shutter their stalls. The lingering aroma of [roasted chestnuts] and fresh parchment fills the air. A [notice board] displays various announcements, mysterious in the moonlight.")
+
+  ;; Riverbank time descriptions
+  (add-time-description 'riverbank :dawn
+                        "The riverbank is peaceful in the early morning, with the [river] reflecting the first light of dawn. A wooden skiff knocks gently against the pier, ready for anyone bold enough to cast off into the misty waters.")
+  
+  (add-time-description 'riverbank :morning
+                        "Morning light paints the [river] in silver ribbons, creating a beautiful scene. A wooden skiff knocks gently against the pier, ready for anyone bold enough to cast off into the clear morning waters.")
+  
+  (add-time-description 'riverbank :afternoon
+                        "The riverbank is warm and inviting in the afternoon sun, with the [river] sparkling in the light. A wooden skiff knocks gently against the pier, ready for anyone bold enough to cast off into the peaceful waters.")
+  
+  (add-time-description 'riverbank :evening
+                        "As evening approaches, the riverbank becomes more atmospheric, with the [river] reflecting the golden sunset. A wooden skiff knocks gently against the pier, ready for anyone bold enough to cast off into the mysterious evening waters.")
+  
+  (add-time-description 'riverbank :dusk
+                        "The riverbank grows mysterious as dusk falls, with the [river] becoming dark and foreboding. A wooden skiff knocks gently against the pier, ready for anyone bold enough to cast off into the shadowy waters.")
+  
+  (add-time-description 'riverbank :night
+                        "Moonlight paints the [river] in silver ribbons. A wooden skiff knocks gently against the pier, ready for anyone bold enough to cast off into the mysterious night waters.")
+
+  ;; Hidden Cove time descriptions
+  (add-time-description 'hidden-cove :dawn
+                        "The cove is shrouded in morning mist, with ancient [ruins] barely visible through the vines on the cliff face. The water is calm and crystal clear, while a narrow [cave entrance] yawns darkly in the rock. A weathered [shipwreck] lies half-submerged in the misty waters.")
+  
+  (add-time-description 'hidden-cove :morning
+                        "Morning light illuminates the secluded cove, revealing ancient [ruins] peeking through the vines on the cliff face. The water is calm and crystal clear, while a narrow [cave entrance] yawns in the rock. A weathered [shipwreck] lies half-submerged near the shore.")
+  
+  (add-time-description 'hidden-cove :afternoon
+                        "The cove is warm and inviting in the afternoon sun, with ancient [ruins] clearly visible through the vines on the cliff face. The water is calm and crystal clear, while a narrow [cave entrance] yawns in the rock. A weathered [shipwreck] lies half-submerged, its details visible in the bright light.")
+  
+  (add-time-description 'hidden-cove :evening
+                        "As evening approaches, the cove becomes more mysterious, with ancient [ruins] casting long shadows through the vines on the cliff face. The water is calm and crystal clear, while a narrow [cave entrance] yawns darkly in the rock. A weathered [shipwreck] lies half-submerged, its secrets hidden in the fading light.")
+  
+  (add-time-description 'hidden-cove :dusk
+                        "The cove grows atmospheric as dusk falls, with ancient [ruins] becoming dark silhouettes against the cliff face. The water is calm and crystal clear, while a narrow [cave entrance] yawns ominously in the rock. A weathered [shipwreck] lies half-submerged, mysterious in the gathering darkness.")
+  
+  (add-time-description 'hidden-cove :night
+                        "A secluded cove surrounded by towering cliffs. The water is calm here, crystal clear. Ancient [ruins] peek through the vines on the cliff face, and a narrow [cave entrance] yawns in the rock. A weathered [shipwreck] lies half-submerged near the shore, mysterious in the moonlight.")
+
+  ;; Village Garden time descriptions
+  (add-time-description 'village-garden :dawn
+                        "The garden is peaceful in the early morning, with [herbs] glistening with dew and the [apple tree] standing silent in the mist. The village elder's careful tending is evident in the neat rows of vegetables.")
+  
+  (add-time-description 'village-garden :morning
+                        "Morning light brings the garden to life, with [herbs] releasing their sweet scent and the [apple tree] catching the first rays. The village elder's careful tending is evident in the thriving rows of vegetables.")
+  
+  (add-time-description 'village-garden :afternoon
+                        "The garden is warm and productive in the afternoon sun, with [herbs] basking in the light and the [apple tree] providing welcome shade. The village elder's careful tending is evident in the flourishing rows of vegetables.")
+  
+  (add-time-description 'village-garden :evening
+                        "As evening approaches, the garden grows peaceful, with [herbs] releasing their evening fragrance and the [apple tree] casting long shadows. The village elder's careful tending is evident in the well-maintained rows of vegetables.")
+  
+  (add-time-description 'village-garden :dusk
+                        "The garden becomes atmospheric as dusk falls, with [herbs] silhouetted against the darkening sky and the [apple tree] standing like a guardian. The village elder's careful tending is evident in the neat rows of vegetables.")
+  
+  (add-time-description 'village-garden :night
+                        "A small, peaceful garden bursting with life. Rows of vegetables grow alongside fragrant [herbs], and a magnificent [apple tree] stands in the center, its branches heavy with ripe red fruit. The village elder tends to this garden with great care, even in the moonlight.")
+
+  ;; Sky rooms time descriptions (simplified since they're aerial views)
+  (add-time-description 'sky-over-village :dawn
+                        "You soar high above the village in the early morning light, the UFO humming beneath you. Below, the [village square] is a small cobblestone circle, the [tavern] shows signs of morning activity, and the [market] is just beginning to open. To the east, dark [woods] stretch like a shadowy blanket. To the northwest, the [graveyard] glows with ethereal light.")
+  
+  (add-time-description 'sky-over-village :morning
+                        "You soar high above the village in the morning light, the UFO humming beneath you. Below, the [village square] is bustling with activity, the [tavern] shows signs of life, and the [market] is alive with merchants. To the east, dark [woods] stretch like a shadowy blanket. To the northwest, the [graveyard] glows with ethereal light.")
+  
+  (add-time-description 'sky-over-village :afternoon
+                        "You soar high above the village in the afternoon sun, the UFO humming beneath you. Below, the [village square] is busy with midday activity, the [tavern] shows signs of life, and the [market] is bustling with merchants. To the east, dark [woods] stretch like a shadowy blanket. To the northwest, the [graveyard] glows with ethereal light.")
+  
+  (add-time-description 'sky-over-village :evening
+                        "You soar high above the village as evening approaches, the UFO humming beneath you. Below, the [village square] is winding down, the [tavern] shows signs of evening activity, and the [market] is closing for the day. To the east, dark [woods] stretch like a shadowy blanket. To the northwest, the [graveyard] glows with ethereal light.")
+  
+  (add-time-description 'sky-over-village :dusk
+                        "You soar high above the village as dusk falls, the UFO humming beneath you. Below, the [village square] is quiet, the [tavern] shows warm lights, and the [market] is closed for the night. To the east, dark [woods] stretch like a shadowy blanket. To the northwest, the [graveyard] glows with ethereal light.")
+  
+  (add-time-description 'sky-over-village :night
+                        "You soar high above the village, the UFO humming beneath you. Below, the [village square] is a small cobblestone circle, the [tavern] a warm glow, and the [market] a cluster of colorful canopies. To the east, dark [woods] stretch like a shadowy blanket. To the northwest, the [graveyard] glows with ethereal light.")
+
+  ;; Highway rooms time descriptions
+  (add-time-description 'highway-north :dawn
+                        "A wide dirt road stretches north and south in the early morning light, flanked by rolling hills and scattered trees. The road is well-maintained and perfect for vehicles, with dust clouds rising from the occasional early traveler.")
+  
+  (add-time-description 'highway-north :morning
+                        "A wide dirt road stretches north and south in the morning light, flanked by rolling hills and scattered trees. The road is well-maintained and perfect for vehicles, with dust clouds rising from the morning traffic.")
+  
+  (add-time-description 'highway-north :afternoon
+                        "A wide dirt road stretches north and south in the afternoon sun, flanked by rolling hills and scattered trees. The road is well-maintained and perfect for vehicles, with dust clouds rising from the busy afternoon traffic.")
+  
+  (add-time-description 'highway-north :evening
+                        "A wide dirt road stretches north and south as evening approaches, flanked by rolling hills and scattered trees. The road is well-maintained and perfect for vehicles, with dust clouds rising from the evening travelers.")
+  
+  (add-time-description 'highway-north :dusk
+                        "A wide dirt road stretches north and south as dusk falls, flanked by rolling hills and scattered trees. The road is well-maintained and perfect for vehicles, with dust clouds rising from the occasional passing traveler in the fading light.")
+  
+  (add-time-description 'highway-north :night
+                        "A wide dirt road stretches north and south, flanked by rolling hills and scattered trees. The road is well-maintained and perfect for vehicles. Dust clouds rise from the occasional passing traveler, mysterious in the moonlight.")
+
+  (add-time-description 'highway-crossroads :dawn
+                        "A major intersection where several roads meet in the early morning light. A weathered signpost points in multiple directions, and the ground is worn smooth by countless wheels. This is clearly a well-traveled route for vehicles.")
+  
+  (add-time-description 'highway-crossroads :morning
+                        "A major intersection where several roads meet in the morning light. A weathered signpost points in multiple directions, and the ground is worn smooth by countless wheels. This is clearly a well-traveled route for vehicles.")
+  
+  (add-time-description 'highway-crossroads :afternoon
+                        "A major intersection where several roads meet in the afternoon sun. A weathered signpost points in multiple directions, and the ground is worn smooth by countless wheels. This is clearly a well-traveled route for vehicles.")
+  
+  (add-time-description 'highway-crossroads :evening
+                        "A major intersection where several roads meet as evening approaches. A weathered signpost points in multiple directions, and the ground is worn smooth by countless wheels. This is clearly a well-traveled route for vehicles.")
+  
+  (add-time-description 'highway-crossroads :dusk
+                        "A major intersection where several roads meet as dusk falls. A weathered signpost points in multiple directions, and the ground is worn smooth by countless wheels. This is clearly a well-traveled route for vehicles.")
+  
+  (add-time-description 'highway-crossroads :night
+                        "A major intersection where several roads meet. A weathered signpost points in multiple directions, and the ground is worn smooth by countless wheels. This is clearly a well-traveled route for vehicles, mysterious in the moonlight.")
+
+  ;; Additional sky rooms time descriptions
+  (add-time-description 'sky-over-forest :dawn
+                        "The UFO glides silently over the vast expanse of the [Whispering Wood] in the early morning light. The pine canopy below ripples like dark green waves. You can see a [clearing] and what looks like a [standing stone] poking through the trees. To the west, the village lights twinkle.")
+  
+  (add-time-description 'sky-over-forest :morning
+                        "The UFO glides silently over the vast expanse of the [Whispering Wood] in the morning light. The pine canopy below ripples like dark green waves. You can see a [clearing] and what looks like a [standing stone] poking through the trees. To the west, the village lights twinkle.")
+  
+  (add-time-description 'sky-over-forest :afternoon
+                        "The UFO glides silently over the vast expanse of the [Whispering Wood] in the afternoon sun. The pine canopy below ripples like dark green waves. You can see a [clearing] and what looks like a [standing stone] poking through the trees. To the west, the village lights twinkle.")
+  
+  (add-time-description 'sky-over-forest :evening
+                        "The UFO glides silently over the vast expanse of the [Whispering Wood] as evening approaches. The pine canopy below ripples like dark green waves. You can see a [clearing] and what looks like a [standing stone] poking through the trees. To the west, the village lights twinkle.")
+  
+  (add-time-description 'sky-over-forest :dusk
+                        "The UFO glides silently over the vast expanse of the [Whispering Wood] as dusk falls. The pine canopy below ripples like dark green waves. You can see a [clearing] and what looks like a [standing stone] poking through the trees. To the west, the village lights twinkle.")
+  
+  (add-time-description 'sky-over-forest :night
+                        "The UFO glides silently over the vast expanse of the [Whispering Wood]. The pine canopy below ripples like dark green waves. You can see a [clearing] and what looks like a [standing stone] poking through the trees. To the west, the village lights twinkle.")
+
+  (add-time-description 'sky-over-market :dawn
+                        "You hover above the [market district] in the early morning light, watching the first merchants begin to set up their stalls. The [riverbank] glitters to the south where morning light dances on water. The village square lies to the east, and beyond it, the world awakens.")
+  
+  (add-time-description 'sky-over-market :morning
+                        "You hover above the [market district] in the morning light, watching merchants set up their stalls. The [riverbank] glitters to the south where morning light dances on water. The village square lies to the east, and beyond it, the world comes alive.")
+  
+  (add-time-description 'sky-over-market :afternoon
+                        "You hover above the [market district] in the afternoon sun, watching the bustling market activity below. The [riverbank] glitters to the south where afternoon light dances on water. The village square lies to the east, and beyond it, the world is busy.")
+  
+  (add-time-description 'sky-over-market :evening
+                        "You hover above the [market district] as evening approaches, watching the last merchants pack their wares. The [riverbank] glitters to the south where evening light dances on water. The village square lies to the east, and beyond it, the world winds down.")
+  
+  (add-time-description 'sky-over-market :dusk
+                        "You hover above the [market district] as dusk falls, watching the last merchants pack their wares. The [riverbank] glitters to the south where dusk light dances on water. The village square lies to the east, and beyond it, darkness.")
+  
+  (add-time-description 'sky-over-market :night
+                        "You hover above the [market district], watching the last merchants pack their wares. The [riverbank] glitters to the south where moonlight dances on water. The village square lies to the east, and beyond it, darkness.")
+
+  (add-time-description 'sky-over-river :dawn
+                        "The UFO drifts above the winding [river] in the early morning light, its waters shimmering below. You can trace its path south to a [hidden cove] surrounded by sheer cliffs. To the north, the market district is visible in the morning light.")
+  
+  (add-time-description 'sky-over-river :morning
+                        "The UFO drifts above the winding [river] in the morning light, its waters shimmering below. You can trace its path south to a [hidden cove] surrounded by sheer cliffs. To the north, the market district is visible in the morning light.")
+  
+  (add-time-description 'sky-over-river :afternoon
+                        "The UFO drifts above the winding [river] in the afternoon sun, its waters shimmering below. You can trace its path south to a [hidden cove] surrounded by sheer cliffs. To the north, the market district is visible in the afternoon light.")
+  
+  (add-time-description 'sky-over-river :evening
+                        "The UFO drifts above the winding [river] as evening approaches, its waters shimmering below. You can trace its path south to a [hidden cove] surrounded by sheer cliffs. To the north, the market district is visible in the evening light.")
+  
+  (add-time-description 'sky-over-river :dusk
+                        "The UFO drifts above the winding [river] as dusk falls, its waters shimmering below. You can trace its path south to a [hidden cove] surrounded by sheer cliffs. To the north, the market district is visible in the fading light.")
+  
+  (add-time-description 'sky-over-river :night
+                        "The UFO drifts above the winding [river], its waters shimmering below. You can trace its path south to a [hidden cove] surrounded by sheer cliffs. To the north, the market district is visible in the moonlight.")
+
+  (add-time-description 'sky-over-graveyard :dawn
+                        "The UFO hovers silently above the ancient [graveyard] in the early morning light. From this height, the tombstones look like scattered bones, and the [ethereal mist] glows eerily in the morning light. To the southeast, the village square is visible.")
+  
+  (add-time-description 'sky-over-graveyard :morning
+                        "The UFO hovers silently above the ancient [graveyard] in the morning light. From this height, the tombstones look like scattered bones, and the [ethereal mist] glows eerily in the morning light. To the southeast, the village square is visible.")
+  
+  (add-time-description 'sky-over-graveyard :afternoon
+                        "The UFO hovers silently above the ancient [graveyard] in the afternoon sun. From this height, the tombstones look like scattered bones, and the [ethereal mist] glows eerily in the afternoon light. To the southeast, the village square is visible.")
+  
+  (add-time-description 'sky-over-graveyard :evening
+                        "The UFO hovers silently above the ancient [graveyard] as evening approaches. From this height, the tombstones look like scattered bones, and the [ethereal mist] glows eerily in the evening light. To the southeast, the village square is visible.")
+  
+  (add-time-description 'sky-over-graveyard :dusk
+                        "The UFO hovers silently above the ancient [graveyard] as dusk falls. From this height, the tombstones look like scattered bones, and the [ethereal mist] glows eerily in the dusk light. To the southeast, the village square is visible.")
+  
+  (add-time-description 'sky-over-graveyard :night
+                        "The UFO hovers silently above the ancient [graveyard]. From this height, the tombstones look like scattered bones, and the [ethereal mist] glows eerily in the moonlight. To the southeast, the village square is visible."))
 
 (defun find-room (room-id)
   (gethash room-id *rooms*))
