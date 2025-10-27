@@ -10,22 +10,36 @@ This directory contains utilities for working with the Common Lisp MUD codebase.
 
 The server is fully functional despite the compilation warning. The warning indicates a structural issue in the `handle-command` function where SBCL detects code that may be unreachable or improperly structured, but it doesn't prevent compilation or execution.
 
-## ⚠️ IMPORTANT: Parenthesis Fixing
+## ⚠️ IMPORTANT: Fast Development Workflow
 
-**ALWAYS use the automated paren-fix tool instead of manually editing parentheses:**
+**Use fast debugging tools during development - avoid running the full server:**
 
+### Fast Development Cycle (Recommended)
 ```bash
-# Check for issues
+# 1. Check for issues (FAST - ~1 second)
 ./dev.sh balance
 
-# Auto-fix parentheses (RECOMMENDED)
+# 2. Auto-fix parentheses (FAST - ~1 second)
 sbcl --script tools/paren-fix.lisp fix <file> --in-place
 
-# Verify the fix
-./dev.sh balance
+# 3. Check compilation (FAST - ~2 seconds)
+./dev.sh check
+
+# 4. Repeat as needed
+```
+
+### Only When Testing Gameplay (SLOW)
+```bash
+# Full validation with server start (SLOW - ~10+ seconds)
+./dev.sh validate
+
+# Start server for gameplay testing (SLOW)
+./dev.sh start
 ```
 
 **Never manually edit parentheses** - this can introduce errors and is time-consuming. The paren-fix tool handles string/comment awareness and ensures correct balancing.
+
+**Never run the full server during development** - use the fast debugging tools instead for quick feedback.
 
 ## Parenthesis Checking Tools
 

@@ -111,11 +111,11 @@
          (input (string-trim '(#\Space #\Tab) rest)))
     (when (zerop (length input))
       (write-crlf stream
-       (wrap "Buy what? Usage: buy <item> [from <merchant>]" :bright-red))
+       (wrap "Buy what? Usage: buy <item> [<count>] [from <merchant>]" :bright-red))
       (return-from command-buy nil))
     (let* ((lower (string-downcase input))
            (from-pos (search " from " lower))
-           (item-name (string-trim '(#\Space #\Tab)
+           (item-part (string-trim '(#\Space #\Tab)
                                    (if from-pos
                                        (subseq input 0 from-pos)
                                        input)))
@@ -127,9 +127,24 @@
         (write-crlf stream
          (wrap "There are no merchants here to buy from." :bright-red))
         (return-from command-buy nil))
-      (when (zerop (length item-name))
-        (write-crlf stream (wrap "Buy what exactly?" :bright-red))
-        (return-from command-buy nil))
+      
+      ;; Parse count and item name from item-part
+      (let* ((words (loop for start = 0 then (1+ pos)
+                          for pos = (position #\Space item-part :start start)
+                          collect (subseq item-part start (or pos (length item-part)))
+                          while pos))
+             (count (if (and words (every #'digit-char-p (first words)))
+                        (parse-integer (first words) :junk-allowed t)
+                        1))
+             (item-name (if (and words (every #'digit-char-p (first words)))
+                            (format nil "~{~a~^ ~}" (rest words))
+                            item-part)))
+        (when (or (null count) (<= count 0))
+          (write-crlf stream (wrap "Count must be a positive number." :bright-red))
+          (return-from command-buy nil))
+        (when (zerop (length item-name))
+          (write-crlf stream (wrap "Buy what exactly?" :bright-red))
+          (return-from command-buy nil))
       (when (and merchant-query (zerop (length merchant-query)))
         (write-crlf stream (wrap "Specify who to buy from." :bright-red))
         (return-from command-buy nil))
@@ -150,20 +165,47 @@
               (write-crlf stream
                (wrap "You don't see that merchant here." :bright-red)))
           (return-from command-buy nil))
-        (multiple-value-bind (success message item-id)
-            (merchant-buy-item merchant player item-name)
-          (write-crlf stream (wrap message (if success :bright-green :bright-red)))
-          (unless success (return-from command-buy nil))
+        ;; Handle multiple purchases
+        (let ((total-cost 0)
+              (items-bought 0)
+              (failed-at nil))
+          (loop for i from 1 to count do
+            (multiple-value-bind (success message item-id)
+                (merchant-buy-item merchant player item-name)
+              (if success
+                  (progn
+                    (incf items-bought)
+                    (when item-id
+                      (announce-to-room player
+                       (format nil "~a buys ~a from ~a."
+                               (wrap (player-name player) :bright-yellow)
+                               (wrap item-id :bright-green)
+                               (wrap (merchant-name merchant) :bright-blue))
+                       :include-self nil)))
+                  (progn
+                    (setf failed-at i)
+                    (write-crlf stream (wrap message :bright-red))
+                    (return))))
+          
+          ;; Show summary
+          (cond
+            ((= items-bought count)
+             (write-crlf stream
+              (wrap (format nil "Successfully bought ~d ~a~p." count item-name count)
+                    :bright-green)))
+            ((> items-bought 0)
+             (write-crlf stream
+              (wrap (format nil "Bought ~d of ~d ~a~p. Stopped at item ~d." 
+                            items-bought count item-name count failed-at)
+                    :bright-yellow)))
+            (t
+             (write-crlf stream
+              (wrap (format nil "Could not buy any ~a~p." item-name count)
+                    :bright-red))))
+          
           (write-crlf stream
            (wrap (format nil "Gold remaining: ~d" (player-gold player))
-                 :bright-cyan))
-          (when item-id
-            (announce-to-room player
-             (format nil "~a buys ~a from ~a."
-                     (wrap (player-name player) :bright-yellow)
-                     (wrap item-id :bright-green)
-                     (wrap (merchant-name merchant) :bright-blue))
-             :include-self nil)))))))
+                 :bright-cyan))))))))
 
 (define-command (("sell") command-sell) (player rest)
   (let* ((stream (player-stream player))
@@ -228,3 +270,4 @@
                         (wrap (merchant-name merchant) :bright-blue))
                 :include-self nil)))))))))
 
+)

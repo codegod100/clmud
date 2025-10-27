@@ -588,11 +588,15 @@
         (required-vehicle-type (get-required-vehicle-type room direction)))
     (cond
       ((null required-vehicle-type)
-       (write-crlf stream (wrap "You can't go that way." :bright-red)))
+       ;; If no specific vehicle type required, check if player is in a vehicle
+       (if (player-vehicle player)
+           (write-crlf stream (wrap "You need to exit your vehicle to go that way." :bright-red))
+           (write-crlf stream (wrap "You can't go that way." :bright-red))))
       ((eq required-vehicle-type :pedestrian)
        (write-crlf stream (wrap "You need to exit your vehicle to go that way." :bright-red)))
       (t
-       (write-crlf stream (wrap "You need a vehicle to go that way." :bright-red))))
+       (let ((vehicle-desc (get-vehicle-type-description required-vehicle-type)))
+         (write-crlf stream (wrap (format nil "You need a ~a to go that way." vehicle-desc) :bright-red)))))
     nil))
 
 ;; Helper function to end combat with mobs

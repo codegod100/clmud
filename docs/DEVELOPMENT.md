@@ -158,9 +158,22 @@ The `handle-command` function in `src/server/commands.lisp` is the main command 
 
 2. **Edit code** (prefer s-expression level edits)
 
-3. **After editing:**
+3. **After editing - FAST DEBUGGING:**
    ```bash
-   ./dev.sh validate  # Check balance and compilation
+   # Check parenthesis balance (FAST)
+   ./dev.sh balance
+   
+   # Check compilation only (FAST)
+   ./dev.sh check
+   
+   # Auto-fix any parenthesis issues (FAST)
+   sbcl --script tools/paren-fix.lisp fix <file> --in-place
+   ```
+
+4. **Only when needed - FULL TESTING:**
+   ```bash
+   # Full validation with server start (SLOW - only when testing gameplay)
+   ./dev.sh validate
    ```
 
 ### Safe Editing Practices
@@ -168,15 +181,48 @@ The `handle-command` function in `src/server/commands.lisp` is the main command 
 **DO:**
 - Use `tools/sexp-edit.lisp` for structural changes
 - Use `tools/paren-fix.lisp` to automatically fix parenthesis issues
-- Check balance after every edit with `./dev.sh balance`
+- Use `./dev.sh balance` and `./dev.sh check` for fast debugging
 - Test compilation before committing
 - Keep temporary scripts in `tools/`
+- Use fast debugging tools during development
 
 **DON'T:**
 - Manually edit parentheses - ALWAYS use `tools/paren-fix.lisp`
+- Run the full server during development (use `./dev.sh check` instead)
 - Create one-off scripts in project root
 - Ignore compilation warnings
 - Edit multiple files before validating
+- Use `./dev.sh validate` for every edit (it's slow)
+
+### Fast Debugging Tools
+
+**Use these tools during development for quick feedback:**
+
+```bash
+# Check parenthesis balance (FAST - ~1 second)
+./dev.sh balance
+
+# Check compilation only (FAST - ~2 seconds)  
+./dev.sh check
+
+# Auto-fix parenthesis issues (FAST - ~1 second)
+sbcl --script tools/paren-fix.lisp fix src/server/core.lisp --in-place
+
+# Check specific file balance (FAST)
+sbcl --script tools/check_parens.lisp check src/server/core.lisp
+
+# Show detailed analysis (FAST)
+sbcl --script tools/check_parens.lisp depth src/server/core.lisp
+```
+
+**Only use these when testing gameplay (SLOW):**
+```bash
+# Full validation with server start (SLOW - ~10+ seconds)
+./dev.sh validate
+
+# Start server for gameplay testing (SLOW)
+./dev.sh start
+```
 
 ### Working with S-Expressions
 
