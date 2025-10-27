@@ -10,6 +10,23 @@ This directory contains utilities for working with the Common Lisp MUD codebase.
 
 The server is fully functional despite the compilation warning. The warning indicates a structural issue in the `handle-command` function where SBCL detects code that may be unreachable or improperly structured, but it doesn't prevent compilation or execution.
 
+## ⚠️ IMPORTANT: Parenthesis Fixing
+
+**ALWAYS use the automated paren-fix tool instead of manually editing parentheses:**
+
+```bash
+# Check for issues
+./dev.sh balance
+
+# Auto-fix parentheses (RECOMMENDED)
+sbcl --script tools/paren-fix.lisp fix <file> --in-place
+
+# Verify the fix
+./dev.sh balance
+```
+
+**Never manually edit parentheses** - this can introduce errors and is time-consuming. The paren-fix tool handles string/comment awareness and ensures correct balancing.
+
 ## Parenthesis Checking Tools
 
 ### check_parens.lisp
@@ -34,8 +51,10 @@ sbcl --script tools/check_parens.lisp all
 - Reports exact locations of unmatched parentheses
 - Handles escape sequences in strings properly
 
-### paren-fix.lisp
+### paren-fix.lisp ⭐ **PRIMARY TOOL**
 Enhanced SBCL script that reports imbalance data and optionally rewrites files to balance parentheses. Now includes string and comment awareness.
+
+**This is the RECOMMENDED tool for fixing parenthesis issues - use this instead of manual editing.**
 
 **Usage:**
 ```bash
@@ -45,7 +64,7 @@ sbcl --script tools/paren-fix.lisp check src/server/commands.lisp
 # Write a balanced copy
 sbcl --script tools/paren-fix.lisp fix src/server/commands.lisp /tmp/server-fixed.lisp
 
-# Balance in place (overwrites!)
+# Balance in place (RECOMMENDED - overwrites!)
 sbcl --script tools/paren-fix.lisp fix src/server/commands.lisp --in-place
 ```
 

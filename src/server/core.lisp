@@ -558,6 +558,69 @@
             ;; Simple exit - no specific vehicle type required
             nil)))))
 
+;; Helper function to check if player is in invalid room
+(defun handle-invalid-room (player)
+  (let ((stream (player-stream player)))
+    (write-crlf stream (wrap "You are in an invalid location! Teleporting to starting room..." :bright-red))
+    (set-player-room player (room-id (starting-room)))
+    (send-room-overview player)
+    nil))
+
+;; Helper function to handle broken vehicle
+(defun handle-broken-vehicle (player direction)
+  (let ((stream (player-stream player)))
+    (multiple-value-bind (repair-success repair-message)
+        (mud.player:attempt-auto-repair player)
+      (if repair-success
+          (progn
+            (write-crlf stream (wrap repair-message :bright-green))
+            (move-player player direction))
+          (progn
+            (write-crlf stream 
+             (wrap (format nil "Your ~a is broken! You need a repair kit to fix it before you can move."
+                           (mud.inventory:item-name (player-vehicle player)))
+                   :bright-red))
+            nil)))))
+
+;; Helper function to handle movement blocked
+(defun handle-movement-blocked (player room direction)
+  (let ((stream (player-stream player))
+        (required-vehicle-type (get-required-vehicle-type room direction)))
+    (cond
+      ((null required-vehicle-type)
+       (write-crlf stream (wrap "You can't go that way." :bright-red)))
+      ((eq required-vehicle-type :pedestrian)
+       (write-crlf stream (wrap "You need to exit your vehicle to go that way." :bright-red)))
+      (t
+       (write-crlf stream (wrap "You need a vehicle to go that way." :bright-red))))
+    nil))
+
+;; Helper function to end combat with mobs
+(defun end-combat-with-mobs (player)
+  (let* ((current-room-id (player-room player))
+         (mobs (get-mobs-in-room current-room-id)))
+    (dolist (mob mobs)
+      (when (and (mob-in-combat-p mob)
+                 (eq (mud.mob::mob-combat-target mob) player))
+        (end-combat mob)))))
+
+;; Helper function to announce departure
+(defun announce-departure (player room direction)
+  (when room
+    (announce-to-room player
+     (concatenate 'string (wrap (player-name player) :bright-blue) " slips " 
+                 (string-downcase (symbol-name direction)) ".")
+     :include-self nil)))
+
+;; Helper function to announce arrival
+(defun announce-arrival (player room)
+  (when room
+    (announce-to-room player
+     (concatenate 'string (wrap (player-name player) :bright-green) " arrives from " 
+                 (wrap (room-name room) :bright-cyan) ".")
+     :include-self nil)))
+
+;; Main movement function - now much simpler
 (defun move-player (player direction)
   (let* ((room (current-room player))
          (vehicle-type
@@ -568,65 +631,22 @@
     (cond
       ;; Check if player is in an invalid room
       ((null room)
-       (let ((stream (player-stream player)))
-         (write-crlf stream (wrap "You are in an invalid location! Teleporting to starting room..." :bright-red))
-         (set-player-room player (room-id (starting-room)))
-         (send-room-overview player)
-         nil))
+       (handle-invalid-room player))
       ;; Check if player is in a broken vehicle
       ((and (player-vehicle player) (mud.player:vehicle-broken-p player))
-       (let ((stream (player-stream player)))
-         ;; Try to auto-repair the broken vehicle
-         (multiple-value-bind (repair-success repair-message)
-             (mud.player:attempt-auto-repair player)
-           (if repair-success
-               ;; Auto-repair succeeded, allow movement
-               (progn
-                 (write-crlf stream
-                  (wrap repair-message :bright-green))
-                 ;; Recursively call move-player to continue with movement
-                 (move-player player direction))
-               ;; Auto-repair failed, block movement
-               (progn
-                 (write-crlf stream 
-                  (wrap (format nil "Your ~a is broken! You need a repair kit to fix it before you can move."
-                                (mud.inventory:item-name (player-vehicle player)))
-                        :bright-red))
-                 nil))))
+       (handle-broken-vehicle player direction))
       ;; Check if target room exists
       ((null target)
-       (let ((stream (player-stream player))
-             (required-vehicle-type (get-required-vehicle-type room direction)))
-         (cond
-           ((null required-vehicle-type)
-            (write-crlf stream (wrap "You can't go that way." :bright-red)))
-           ((eq required-vehicle-type :pedestrian)
-            (write-crlf stream (wrap "You need to exit your vehicle to go that way." :bright-red)))
-           (t
-            (write-crlf stream (wrap "You need a vehicle to go that way." :bright-red))))))
-         nil)
+       (handle-movement-blocked player room direction))
       ;; Allow movement
       (t
-       (progn
-         ;; End combat with any mobs in the current room
-         (let* ((current-room-id (player-room player))
-                (mobs (get-mobs-in-room current-room-id)))
-           (dolist (mob mobs)
-             (when (and (mob-in-combat-p mob)
-                        (eq (mud.mob::mob-combat-target mob) player))
-               (end-combat mob))))
-         
-         (announce-to-room player
-          (concatenate 'string (wrap (player-name player) :bright-blue) " slips " 
-                      (string-downcase (symbol-name direction)) ".")
-          :include-self nil)
+       (end-combat-with-mobs player)
+       (announce-departure player room direction)
+       (when target
          (set-player-room player (room-id target))
-         (announce-to-room player
-          (concatenate 'string (wrap (player-name player) :bright-green) " arrives from " 
-                      (wrap (room-name room) :bright-cyan) ".")
-          :include-self nil))
-         (send-room-overview player)
-         t))))
+         (announce-arrival player room))
+       (send-room-overview player)
+       t))))
 
 
 (defun handle-say (player text)
@@ -986,4 +1006,3 @@
           ((string= dir "ne") :northeast) ((string= dir "nw") :northwest)
           ((string= dir "se") :southeast) ((string= dir "sw") :southwest)
           (t (intern (string-upcase dir) :keyword)))))
-

@@ -167,12 +167,13 @@ The `handle-command` function in `src/server/commands.lisp` is the main command 
 
 **DO:**
 - Use `tools/sexp-edit.lisp` for structural changes
-- Check balance after every edit
+- Use `tools/paren-fix.lisp` to automatically fix parenthesis issues
+- Check balance after every edit with `./dev.sh balance`
 - Test compilation before committing
 - Keep temporary scripts in `tools/`
 
 **DON'T:**
-- Manually edit parentheses without verification
+- Manually edit parentheses - ALWAYS use `tools/paren-fix.lisp`
 - Create one-off scripts in project root
 - Ignore compilation warnings
 - Edit multiple files before validating
@@ -375,8 +376,14 @@ pkill -f "sbcl.*mud.lisp"
 
 ### Unbalanced Parentheses
 ```bash
-python3 tools/lisp-safe-edit.py src/server/commands.lisp
-python3 tools/check-paren-balance.py src/server/commands.lisp
+# Check balance
+./dev.sh balance
+
+# Auto-fix parentheses (RECOMMENDED)
+sbcl --script tools/paren-fix.lisp fix src/server/commands.lisp --in-place
+
+# Verify fix
+./dev.sh balance
 ```
 
 ### Compilation Errors
