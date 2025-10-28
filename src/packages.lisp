@@ -64,6 +64,7 @@
            :explore-map
            :generate-map
            :generate-artistic-map
+           :final-map-render
            :define-vehicle
            :find-vehicle
            :vehicle-armor

@@ -17,6 +17,7 @@
 (load "src/inventory.lisp")
 (load "src/merchant.lisp")
 (load "src/world.lisp")
+(load "src/final-map.lisp")
 (load "src/mob.lisp")
 (load "src/combat.lisp")
 (load "src/quest.lisp")
